@@ -50,9 +50,12 @@ async def start_cmd(message: types.Message):
     data[user_id] = {"tokens": [], "time": None}
     save_data(data)
 
-    kb = InlineKeyboardMarkup(row_width=2)
-    for token in POPULAR_TOKENS:
-        kb.inline_keyboard.append([InlineKeyboardButton(text=token.upper(), callback_data=f"add_{token}")])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=POPULAR_TOKENS[i].upper(), callback_data=f"add_{POPULAR_TOKENS[i]}"),
+         InlineKeyboardButton(text=POPULAR_TOKENS[i+1].upper(), callback_data=f"add_{POPULAR_TOKENS[i+1]}")]
+        for i in range(0, len(POPULAR_TOKENS), 2)
+    ])
+
     await message.answer("📥 Вибери до 5 монет:", reply_markup=kb)
     await message.answer("🔍 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
 
@@ -81,14 +84,13 @@ async def add_token_callback(callback_query: types.CallbackQuery):
     if len(data[user_id]["tokens"]) == 5:
         await bot.send_message(user_id, "⏰ Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
 
-@dp.message()
+@dp.message(lambda message: not message.text.startswith("/"))
 async def handle_text(message: types.Message):
     user_id = str(message.chat.id)
     text = message.text.strip()
     data = load_data()
 
     if message.from_user.id in ADMIN_IDS:
-        # Admin broadcast logic
         for uid, info in data.items():
             if info.get("time"):
                 try:

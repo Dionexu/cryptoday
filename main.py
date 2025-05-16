@@ -6,7 +6,23 @@ from datetime import datetime
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
+import asyncio
+from aiogram import Bot, Dispatcher
+from handlers import router  # якщо у тебе є router
+import os
+
+TOKEN = os.getenv("BOT_TOKEN")  # або встав токен напряму
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+dp.include_router(router)  # тільки якщо в тебе є router
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)

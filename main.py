@@ -6,27 +6,12 @@ from datetime import datetime
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import asyncio
-from aiogram import Bot, Dispatcher
-from handlers import router  # якщо у тебе є router
-import os
-
-TOKEN = os.getenv("BOT_TOKEN")  # або встав токен напряму
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
-
-dp.include_router(router)  # тільки якщо в тебе є router
-
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
+from aiogram.filters import Command
+from aiogram import F
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 DATA_FILE = "user_data.json"
 POPULAR_TOKENS = ['btc', 'eth', 'solana', 'ton', 'dogecoin', 'link', 'ada', 'dot', 'matic', 'arb']
@@ -58,7 +43,7 @@ async def search_token(query):
                 return coins[0]["id"], coins[0]["name"]
     return None, None
 
-@dp.message_handler(commands=["start"])
+@dp.message(Command("start"))
 async def start_cmd(message: types.Message):
     user_id = str(message.chat.id)
     data = load_data()
@@ -67,15 +52,16 @@ async def start_cmd(message: types.Message):
 
     kb = InlineKeyboardMarkup(row_width=2)
     for token in POPULAR_TOKENS:
-        kb.insert(InlineKeyboardButton(token.upper(), callback_data=f"add_{token}"))
+        kb.add(InlineKeyboardButton(token.upper(), callback_data=f"add_{token}"))
+
     await message.answer("👋 Вибери до 5 монет:", reply_markup=kb)
     await message.answer("🔎 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
 
-@dp.message_handler(commands=["settime"])
+@dp.message(Command("settime"))
 async def set_time(message: types.Message):
     await message.answer("🕐 Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
 
-@dp.message_handler(commands=["reset"])
+@dp.message(Command("reset"))
 async def reset_cmd(message: types.Message):
     user_id = str(message.chat.id)
     data = load_data()
@@ -83,7 +69,7 @@ async def reset_cmd(message: types.Message):
     save_data(data)
     await message.answer("♻️ Дані скинуто. Введи /start щоб почати знову.")
 
-@dp.message_handler()
+@dp.message(F.text)
 async def handle_text(message: types.Message):
     user_id = str(message.chat.id)
     text = message.text.strip().lower()
@@ -113,7 +99,7 @@ async def handle_text(message: types.Message):
         save_data(data)
         await message.answer(f"✅ Додано: {token_name} ({token_id})")
 
-@dp.callback_query_handler(lambda c: c.data.startswith("add_"))
+@dp.callback_query(F.data.startswith("add_"))
 async def add_token_callback(callback_query: types.CallbackQuery):
     user_id = str(callback_query.from_user.id)
     token = callback_query.data.replace("add_", "")
@@ -148,7 +134,9 @@ async def daily_summary():
                     pass
         await asyncio.sleep(60)
 
+async def main():
+    asyncio.create_task(daily_summary())
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(daily_summary())
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())

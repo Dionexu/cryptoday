@@ -4,10 +4,9 @@ import aiohttp
 import asyncio
 from datetime import datetime
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiogram import F
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
@@ -65,8 +64,6 @@ async def start_cmd(message: types.Message):
     await message.answer("👋 Вибери до 5 монет:", reply_markup=keyboard)
     await message.answer("🔎 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
     await message.answer("🕐 Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
-
-
 
 @dp.message(Command("settime"))
 async def set_time(message: types.Message):
@@ -128,6 +125,25 @@ async def add_token_callback(callback_query: types.CallbackQuery):
     await callback_query.answer(f"Додано {token.upper()}")
     await bot.send_message(user_id, f"✅ Додано монету: {token.upper()}")
 
+@dp.callback_query(F.data == "reset_daily")
+async def reset_from_summary(callback: types.CallbackQuery):
+    user_id = str(callback.from_user.id)
+    data = load_data()
+    data[user_id] = {"tokens": [], "time": None}
+    save_data(data)
+    await callback.message.answer("♻️ Дані скинуто. Введи /start щоб почати знову.")
+    await callback.answer()
+
+@dp.callback_query(F.data == "stop_daily")
+async def stop_from_summary(callback: types.CallbackQuery):
+    user_id = str(callback.from_user.id)
+    data = load_data()
+    if user_id in data:
+        del data[user_id]
+        save_data(data)
+    await callback.message.answer("🛑 Сповіщення вимкнено. Дані видалено.")
+    await callback.answer()
+
 async def daily_summary():
     while True:
         now = datetime.now().strftime("%H:%M")
@@ -139,8 +155,16 @@ async def daily_summary():
                     price = await fetch_price(token)
                     prices.append(f"{token.upper()} = ${price}")
                 msg = "📊 Щоденна сводка:\n" + "\n".join(prices)
+
+                buttons = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="🔄 Reset", callback_data="reset_daily"),
+                        InlineKeyboardButton(text="⛔ Stop", callback_data="stop_daily")
+                    ]
+                ])
+
                 try:
-                    await bot.send_message(user_id, msg)
+                    await bot.send_message(user_id, msg, reply_markup=buttons)
                 except:
                     pass
         await asyncio.sleep(60)

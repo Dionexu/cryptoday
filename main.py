@@ -50,12 +50,21 @@ async def start_cmd(message: types.Message):
     data[user_id] = {"tokens": [], "time": None}
     save_data(data)
 
-    kb = InlineKeyboardMarkup(row_width=2)
-    for token in POPULAR_TOKENS:
-        kb.add(InlineKeyboardButton(token.upper(), callback_data=f"add_{token}"))
+    keyboard_buttons = [
+        InlineKeyboardButton(text=token.upper(), callback_data=f"add_{token}")
+        for token in POPULAR_TOKENS
+    ]
 
-    await message.answer("👋 Вибери до 5 монет:", reply_markup=kb)
+    def chunk(lst, n):
+        return [lst[i:i + n] for i in range(0, len(lst), n)]
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=chunk(keyboard_buttons, 2)
+    )
+
+    await message.answer("👋 Вибери до 5 монет:", reply_markup=keyboard)
     await message.answer("🔎 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
+
 
 @dp.message(Command("settime"))
 async def set_time(message: types.Message):

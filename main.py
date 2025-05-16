@@ -64,6 +64,8 @@ async def start_cmd(message: types.Message):
 
     await message.answer("👋 Вибери до 5 монет:", reply_markup=keyboard)
     await message.answer("🔎 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
+    await message.answer("🕐 Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
+
 
 
 @dp.message(Command("settime"))

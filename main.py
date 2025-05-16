@@ -12,10 +12,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-ADMIN_IDS = ["696165311", "7923967086"]
-
 DATA_FILE = "user_data.json"
 POPULAR_TOKENS = ['btc', 'eth', 'solana', 'ton', 'dogecoin', 'link', 'ada', 'dot', 'matic', 'arb']
+ADMIN_IDS = [696165311, 7923967086]
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -48,14 +47,12 @@ async def search_token(query):
 async def start_cmd(message: types.Message):
     user_id = str(message.chat.id)
     data = load_data()
-    if user_id not in data:
-        data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
-        save_data(data)
+    data[user_id] = {"tokens": [], "time": None}
+    save_data(data)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=token.upper(), callback_data=f"add_{token}") for token in POPULAR_TOKENS[i:i + 2]]
-        for i in range(0, len(POPULAR_TOKENS), 2)
-    ])
+    kb = InlineKeyboardMarkup(row_width=2)
+    for token in POPULAR_TOKENS:
+        kb.inline_keyboard.append([InlineKeyboardButton(text=token.upper(), callback_data=f"add_{token}")])
     await message.answer("📥 Вибери до 5 монет:", reply_markup=kb)
     await message.answer("🔍 Або напиши скорочення монети (наприклад: `arb`) щоб знайти її через пошук.")
 
@@ -66,7 +63,7 @@ async def add_token_callback(callback_query: types.CallbackQuery):
     data = load_data()
 
     if user_id not in data:
-        data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
+        data[user_id] = {"tokens": [], "time": None}
 
     if token in data[user_id]["tokens"]:
         await callback_query.answer("Вже вибрано")
@@ -82,28 +79,36 @@ async def add_token_callback(callback_query: types.CallbackQuery):
     await bot.send_message(user_id, f"✅ Додано: {token.upper()}")
 
     if len(data[user_id]["tokens"]) == 5:
-        data[user_id]["awaiting_time"] = True
-        save_data(data)
         await bot.send_message(user_id, "⏰ Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
 
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = str(message.chat.id)
-    text = message.text.strip().lower()
+    text = message.text.strip()
     data = load_data()
 
-    if user_id not in data:
-        data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
+    if message.from_user.id in ADMIN_IDS:
+        # Admin broadcast logic
+        for uid, info in data.items():
+            if info.get("time"):
+                try:
+                    await bot.send_message(uid, text)
+                except:
+                    pass
+        await message.answer("✅ Повідомлення надіслано всім користувачам.")
+        return
 
-    if data[user_id].get("awaiting_time") and ":" in text:
+    if user_id not in data:
+        data[user_id] = {"tokens": [], "time": None}
+
+    if ":" in text:
         data[user_id]["time"] = text
-        data[user_id]["awaiting_time"] = False
         save_data(data)
         await message.answer(f"✅ Час встановлено на {text}")
         return
 
     if text.isalpha():
-        token_id, token_name = await search_token(text)
+        token_id, token_name = await search_token(text.lower())
         if not token_id:
             await message.answer("❌ Монету не знайдено.")
             return
@@ -117,26 +122,7 @@ async def handle_text(message: types.Message):
         save_data(data)
         await message.answer(f"✅ Додано: {token_name} ({token_id})")
         if len(data[user_id]["tokens"]) == 5:
-            data[user_id]["awaiting_time"] = True
-            save_data(data)
             await message.answer("⏰ Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
-
-@dp.message(Command("broadcast"))
-async def send_broadcast(message: types.Message):
-    if str(message.from_user.id) not in ADMIN_IDS:
-        return await message.answer("🚫 У тебе немає доступу до цієї команди.")
-
-    await message.answer("✏️ Напиши текст розсилки:")
-
-    @dp.message()
-    async def handle_broadcast_text(msg: types.Message):
-        data = load_data()
-        for user_id in data.keys():
-            try:
-                await bot.send_message(user_id, msg.text)
-            except Exception as e:
-                print(f"❌ Не вдалося надіслати {user_id}: {e}")
-        await msg.answer("✅ Розсилку надіслано.")
 
 async def daily_summary():
     while True:
@@ -163,7 +149,7 @@ async def daily_summary():
 async def reset_data(callback_query: types.CallbackQuery):
     user_id = str(callback_query.from_user.id)
     data = load_data()
-    data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
+    data[user_id] = {"tokens": [], "time": None}
     save_data(data)
     await callback_query.message.answer("♻️ Ваші дані було скинуто. /start щоб почати знову.")
 

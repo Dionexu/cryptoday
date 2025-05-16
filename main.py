@@ -12,6 +12,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+ADMIN_IDS = ["696165311", "7923967086"]
+
 DATA_FILE = "user_data.json"
 POPULAR_TOKENS = ['btc', 'eth', 'solana', 'ton', 'dogecoin', 'link', 'ada', 'dot', 'matic', 'arb']
 
@@ -46,8 +48,9 @@ async def search_token(query):
 async def start_cmd(message: types.Message):
     user_id = str(message.chat.id)
     data = load_data()
-    data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
-    save_data(data)
+    if user_id not in data:
+        data[user_id] = {"tokens": [], "time": None, "awaiting_time": False}
+        save_data(data)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=token.upper(), callback_data=f"add_{token}") for token in POPULAR_TOKENS[i:i + 2]]
@@ -117,6 +120,23 @@ async def handle_text(message: types.Message):
             data[user_id]["awaiting_time"] = True
             save_data(data)
             await message.answer("⏰ Напиши час сповіщення у форматі `09:00`, `18:30` і т.д.")
+
+@dp.message(Command("broadcast"))
+async def send_broadcast(message: types.Message):
+    if str(message.from_user.id) not in ADMIN_IDS:
+        return await message.answer("🚫 У тебе немає доступу до цієї команди.")
+
+    await message.answer("✏️ Напиши текст розсилки:")
+
+    @dp.message()
+    async def handle_broadcast_text(msg: types.Message):
+        data = load_data()
+        for user_id in data.keys():
+            try:
+                await bot.send_message(user_id, msg.text)
+            except Exception as e:
+                print(f"❌ Не вдалося надіслати {user_id}: {e}")
+        await msg.answer("✅ Розсилку надіслано.")
 
 async def daily_summary():
     while True:

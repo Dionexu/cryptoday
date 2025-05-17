@@ -4,22 +4,23 @@ import aiohttp
 import asyncio
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove # ReplyKeyboardRemove может не понадобиться
 from aiogram.filters import Command
 from aiogram.utils.markdown import hcode
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+# FSM больше не нужен, убираем импорты:
+# from aiogram.fsm.context import FSMContext
+# from aiogram.fsm.state import State, StatesGroup
 
 # --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_БОТ_ТОКЕН_ТУТ") 
 if BOT_TOKEN == "ВАШ_БОТ_ТОКЕН_ТУТ":
     print("ПОПЕРЕДЖЕННЯ: Будь ласка, встановіть ваш справжній BOT_TOKEN!")
-    # exit() # Раскомментируйте, если хотите остановить бота, если токен не установлен
+    # exit() 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-DATA_FILE = "user_crypto_preferences.json" 
+DATA_FILE = "user_crypto_preferences_simplified.json" # Новое имя файла для чистоты
 
 POPULAR_TOKENS_MAP = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana', 
@@ -30,14 +31,11 @@ POPULAR_TOKENS_ORDER = ['BTC', 'ETH', 'SOL', 'TON', 'DOGE', 'LINK', 'ADA', 'DOT'
 
 ADMIN_IDS = [696165311, 7923967086] 
 
-# --- СОСТОЯНИЯ FSM ДЛЯ ЦЕНОВЫХ АЛЕРТОВ ---
-class PriceAlertStates(StatesGroup):
-    waiting_coin_ticker = State()
-    waiting_lower_target = State()
-    waiting_upper_target = State()
+# FSM States класс удален
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ ---
 def load_data():
+    # ... (код без изменений) ...
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r", encoding='utf-8') as f:
@@ -54,28 +52,31 @@ def load_data():
     return {}
 
 def save_data(data):
+    # ... (код без изменений) ...
     try:
         with open(DATA_FILE, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
     except Exception as e:
         print(f"Не вдалося зберегти дані: {e}")
 
+
 def get_default_user_config():
     return {
         "tokens_id": [],            
         "tokens_display": [],       
         "frequency": None,          
-        "notification_times_utc": [],
-        "price_alert_config": None 
+        "notification_times_utc": []
+        # price_alert_config и last_hourly_notification_hour_utc УДАЛЕНЫ
     }
 
-# --- ФУНКЦИИ ДЛЯ API COINGECKO (С УЛУЧШЕННЫМ ЛОГИРОВАНИЕМ) ---
-async def fetch_price(symbol_id: str) -> str | float: # Возвращает цену или строку ошибки
+# --- ФУНКЦИИ ДЛЯ API COINGECKO (с улучшенным логированием и пакетным запросом) ---
+async def fetch_price(symbol_id: str) -> str | float: # Эта функция может понадобиться, если вы захотите добавить поиск по одной монете в будущем
+    # ... (код этой функции без изменений, как в полной версии с алертами) ...
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol_id}&vs_currencies=usd"
     log_prefix = f"[{datetime.now(timezone.utc).isoformat()}] FetchPrice ({symbol_id}):"
     try:
         async with aiohttp.ClientSession() as session:
-            headers = {'User-Agent': 'Mozilla/5.0 (TelegramBot/1.0)'} # Простой User-Agent
+            headers = {'User-Agent': 'Mozilla/5.0 (TelegramBot/1.0)'}
             async with session.get(url, timeout=15, headers=headers) as resp:
                 response_text = await resp.text()
                 if resp.status == 200:
@@ -101,7 +102,9 @@ async def fetch_price(symbol_id: str) -> str | float: # Возвращает ц�
         return "Error"
     return "N/A"
 
+
 async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
+    # ... (код этой функции без изменений, как в полной версии с алертами) ...
     if not symbol_ids:
         return {}
     
@@ -124,7 +127,7 @@ async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
                             results[symbol_id] = float(price)
                         else:
                             results[symbol_id] = "NoPriceData"
-                            print(f"{log_prefix} 'usd' price not found for {symbol_id} in batch response: {data}")
+                            # print(f"{log_prefix} 'usd' price not found for {symbol_id} in batch response: {data}") # Можно закомментировать для уменьшения логов
                     return results
                 else:
                     print(f"{log_prefix} API Error. Status: {resp.status}, Response: {response_text}")
@@ -141,7 +144,9 @@ async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
         for symbol_id in symbol_ids: results[symbol_id] = "Error"
     return results
 
-async def search_token(query: str): # Остается как было, но с таймаутом и базовой обработкой
+
+async def search_token(query: str):
+    # ... (код этой функции без изменений) ...
     url = f"https://api.coingecko.com/api/v3/search?query={query}"
     log_prefix = f"[{datetime.now(timezone.utc).isoformat()}] SearchToken ({query}):"
     try:
@@ -164,7 +169,7 @@ async def search_token(query: str): # Остается как было, но с 
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def get_frequency_description_text(freq_code: str | None, notification_times_utc: list | None = None) -> str:
-    # ... (код этой функции без изменений, как в предыдущем ответе) ...
+    # ... (код этой функции без изменений) ...
     if not freq_code:
         return "не встановлена (сповіщення вимкнені)"
     if freq_code == "hourly":
@@ -180,17 +185,16 @@ def get_frequency_description_text(freq_code: str | None, notification_times_utc
         return f"2 рази на день (о {t1} та {t2} UTC)"
     return "Невідома частота"
 
-# --- ОБРАБОТЧИКИ КОМАНД И CALLBACK (Включая FSM для Price Alerts) ---
-# /start
+# --- ОБРАБОТЧИКИ КОМАНД И CALLBACK ---
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
-    # ... (код этой функции без изменений, как в предыдущем ответе) ...
     user_id = str(message.chat.id)
     data = load_data()
     if user_id not in data:
         data[user_id] = get_default_user_config()
         save_data(data)
 
+    # ... (код для создания клавиатуры kb такой же) ...
     kb_buttons = []
     for i in range(0, len(POPULAR_TOKENS_ORDER), 2):
         row = []
@@ -203,7 +207,6 @@ async def start_cmd(message: types.Message):
             coin_id2 = POPULAR_TOKENS_MAP[display_ticker2]
             row.append(InlineKeyboardButton(text=display_ticker2, callback_data=f"add_{coin_id2}_{display_ticker2}"))
         kb_buttons.append(row)
-    
     kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
 
     await message.answer(
@@ -213,21 +216,17 @@ async def start_cmd(message: types.Message):
     )
     await message.answer(
         "🔍 <b>Або напиши скорочення (тікер) монети</b> (наприклад: `arb` або `Bitcoin`), щоб знайти її через пошук.\n\n"
-        "Після вибору монет, налаштуй частоту сповіщень командою /setfrequency.\n"
-        "Також можеш налаштувати <b>цінове сповіщення</b> на одну монету: /setpricealert\n\n" # Добавлено про price alert
+        "Після вибору монет, налаштуй частоту сповіщень командою /setfrequency.\n\n"
         "<b>Інші команди:</b>\n"
-        "/mycryptoconfig - переглянути поточні налаштування регулярних сповіщень\n"
-        "/mypricealert - переглянути налаштування цінового сповіщення\n" # Добавлено
-        "/resetcrypto - скинути всі налаштування криптовалют (включаючи цінове сповіщення)\n"
-        "/stopcryptonotifications - зупинити регулярні сповіщення про ціни\n"
-        "/removepricealert - вимкнути цінове сповіщення", # Добавлено
+        "/mycryptoconfig - переглянути поточні налаштування\n"
+        "/resetcrypto - скинути всі налаштування\n"
+        "/stopcryptonotifications - зупинити сповіщення",
         parse_mode="HTML"
     )
 
-# /mycryptoconfig
 @dp.message(Command("mycryptoconfig"))
 async def my_config_cmd(message: types.Message):
-    # ... (код этой функции без изменений) ...
+    # ... (код без изменений) ...
     user_id = str(message.chat.id)
     data = load_data()
     user_config = data.get(user_id)
@@ -245,7 +244,7 @@ async def my_config_cmd(message: types.Message):
     freq_desc = get_frequency_description_text(frequency_code, notification_times)
 
     await message.answer(
-        f"<b>⚙️ Ваші поточні налаштування регулярних сповіщень:</b>\n\n"
+        f"<b>⚙️ Ваші поточні налаштування:</b>\n\n"
         f"<b>Обрані монети:</b> {tokens_display_str}\n"
         f"<b>Частота сповіщень:</b> {freq_desc}\n\n"
         "Щоб змінити монети, просто додайте нові або використайте /resetcrypto.\n"
@@ -253,10 +252,9 @@ async def my_config_cmd(message: types.Message):
         parse_mode="HTML"
     )
 
-# Callback add_
 @dp.callback_query(lambda c: c.data.startswith("add_"))
 async def add_token_callback(callback_query: types.CallbackQuery):
-    # ... (код этой функции без изменений) ...
+    # ... (код без изменений) ...
     user_id = str(callback_query.from_user.id)
     try:
         _, coin_id, display_ticker = callback_query.data.split("_", 2)
@@ -275,7 +273,7 @@ async def add_token_callback(callback_query: types.CallbackQuery):
         await callback_query.answer(f"{display_ticker} вже обрано", show_alert=False)
         return
 
-    if len(tokens_id_list) >= 5:
+    if len(tokens_id_list) >= 5: # Оставляем лимит в 5 монет
         await callback_query.answer("Вже обрано 5 монет. Максимум.", show_alert=True)
         return
 
@@ -295,10 +293,9 @@ async def add_token_callback(callback_query: types.CallbackQuery):
     elif len(tokens_id_list) > 0: 
         await bot.send_message(user_id, "Щоб налаштувати частоту сповіщень, використайте /setfrequency")
 
-# /setfrequency
 @dp.message(Command("setfrequency"))
 async def set_frequency_cmd(message: types.Message):
-    # ... (код этой функции без изменений) ...
+    # ... (код без изменений) ...
     user_id = str(message.chat.id)
     data = load_data()
     user_config = data.get(user_id)
@@ -317,10 +314,9 @@ async def set_frequency_cmd(message: types.Message):
     ])
     await message.answer("⏰ Оберіть частоту сповіщень (час вказано в UTC):", reply_markup=kb)
 
-# Callback setfreq_
 @dp.callback_query(lambda c: c.data.startswith("setfreq_"))
 async def process_frequency_callback(callback_query: types.CallbackQuery):
-    # ... (код этой функции без изменений) ...
+    # ... (код почти без изменений, убираем last_hourly_notification_hour_utc) ...
     user_id = str(callback_query.from_user.id)
     action_parts = callback_query.data.split("_") 
     
@@ -348,6 +344,8 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     
     user_config["frequency"] = new_frequency
     user_config["notification_times_utc"] = new_times_utc
+    # user_config["last_hourly_notification_hour_utc"] = -1 # Это поле удалено
+    
     data[user_id] = user_config
     save_data(data)
     
@@ -358,169 +356,20 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     else:
       await callback_query.answer("Сповіщення вимкнено.", show_alert=False)
 
-# --- FSM для /setpricealert ---
-@dp.message(Command("setpricealert"))
-async def cmd_set_price_alert_start(message: types.Message, state: FSMContext):
-    # ... (код этой функции из предыдущего ответа) ...
-    await state.set_state(PriceAlertStates.waiting_coin_ticker)
-    await message.answer(
-        "<b>Налаштування цінового сповіщення.</b>\n"
-        "Напишіть тікер монети, для якої ви хочете встановити сповіщення (наприклад, BTC, ETH, SOL):",
-        parse_mode="HTML"
-    )
+# Команды и FSM для Price Alert удалены (/setpricealert, /mypricealert, /removepricealert, PriceAlertStates, cancelalert)
 
-@dp.message(PriceAlertStates.waiting_coin_ticker)
-async def process_alert_coin_ticker(message: types.Message, state: FSMContext):
-    # ... (код этой функции из предыдущего ответа) ...
-    ticker_input = message.text.strip().lower()
-    if not ticker_input or len(ticker_input) > 15:
-        await message.answer("Будь ласка, введіть коректний тікер (наприклад, BTC). Спробуйте ще раз або напишіть /cancelalert.")
-        return
-
-    coin_id, coin_name, coin_symbol_api = await search_token(ticker_input)
-
-    if not coin_id:
-        await message.answer(f"❌ Монету '{message.text.strip()}' не знайдено. Спробуйте інший тікер або напишіть /cancelalert.")
-        return
-
-    display_name = coin_symbol_api.upper() if coin_symbol_api else coin_name
-
-    await state.update_data(alert_coin_id=coin_id, alert_coin_display=display_name)
-    await state.set_state(PriceAlertStates.waiting_lower_target)
-    await message.answer(
-        f"Обрано монету: <b>{display_name}</b> (ID: {hcode(coin_id)}).\n"
-        "Тепер введіть <b>нижній</b> поріг ціни (в USD), при досягненні якого ви отримаєте сповіщення (наприклад, 29500.50):",
-        parse_mode="HTML"
-    )
-
-@dp.message(PriceAlertStates.waiting_lower_target)
-async def process_alert_lower_target(message: types.Message, state: FSMContext):
-    # ... (код этой функции из предыдущего ответа) ...
-    try:
-        lower_target = float(message.text.strip().replace(',', '.')) 
-        if lower_target <= 0:
-            raise ValueError("Ціна повинна бути позитивною.")
-    except ValueError:
-        await message.answer("Будь ласка, введіть коректне числове значення для нижнього порогу (наприклад, 29500.50) або напишіть /cancelalert.")
-        return
-
-    await state.update_data(lower_target=lower_target)
-    await state.set_state(PriceAlertStates.waiting_upper_target)
-    await message.answer(
-        f"Нижній поріг встановлено: <b>${lower_target:,.2f}</b>.\n"
-        "Тепер введіть <b>верхній</b> поріг ціни (в USD), він має бути більшим за нижній (наприклад, 31000):",
-        parse_mode="HTML"
-    )
-
-@dp.message(PriceAlertStates.waiting_upper_target)
-async def process_alert_upper_target(message: types.Message, state: FSMContext):
-    # ... (код этой функции из предыдущего ответа) ...
-    try:
-        upper_target = float(message.text.strip().replace(',', '.'))
-        user_fsm_data = await state.get_data()
-        lower_target = user_fsm_data.get('lower_target')
-
-        if upper_target <= 0:
-             raise ValueError("Ціна повинна бути позитивною.")
-        if lower_target is not None and upper_target <= lower_target:
-            await message.answer(f"Верхній поріг (<b>${upper_target:,.2f}</b>) має бути більшим за нижній (<b>${lower_target:,.2f}</b>). "
-                                 "Спробуйте ще раз або напишіть /cancelalert.", parse_mode="HTML")
-            return
-    except ValueError:
-        await message.answer("Будь ласка, введіть коректне числове значення для верхнього порогу (наприклад, 31000) або напишіть /cancelalert.")
-        return
-
-    user_id = str(message.from_user.id)
-    all_data = load_data()
-    user_config = all_data.get(user_id, get_default_user_config())
-
-    user_config["price_alert_config"] = {
-        "coin_id": user_fsm_data.get('alert_coin_id'),
-        "coin_display": user_fsm_data.get('alert_coin_display'),
-        "lower_target": lower_target,
-        "upper_target": upper_target,
-        "alert_sent_lower": False, 
-        "alert_sent_upper": False,
-        "is_active": True
-    }
-    all_data[user_id] = user_config
-    save_data(all_data)
-
-    await state.clear() 
-    await message.answer(
-        f"✅ <b>Цінове сповіщення налаштовано!</b>\n"
-        f"Монета: <b>{user_config['price_alert_config']['coin_display']}</b>\n"
-        f"Нижній поріг: <b>${user_config['price_alert_config']['lower_target']:,.2f}</b>\n"
-        f"Верхній поріг: <b>${user_config['price_alert_config']['upper_target']:,.2f}</b>\n\n"
-        "Ви отримаєте повідомлення, коли ціна досягне одного з цих порогів.",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove() 
-    )
-
-@dp.message(Command("cancelalert"), PriceAlertStates.any_state)
-async def cancel_alert_setup(message: types.Message, state: FSMContext):
-    # ... (код этой функции из предыдущего ответа) ...
-    current_state = await state.get_state()
-    if current_state is None:
-        await message.answer("Немає активної сесії налаштування для скасування.")
-        return
-
-    await state.clear()
-    await message.answer("Налаштування цінового сповіщення скасовано.", reply_markup=ReplyKeyboardRemove())
-
-# /mypricealert
-@dp.message(Command("mypricealert"))
-async def cmd_my_price_alert(message: types.Message):
-    # ... (код этой функции из предыдущего ответа) ...
-    user_id = str(message.chat.id)
-    data = load_data()
-    user_config = data.get(user_id)
-    alert_config = user_config.get("price_alert_config") if user_config else None
-
-    if alert_config and alert_config.get("is_active"):
-        await message.answer(
-            f"<b>🔔 Ваше поточне цінове сповіщення:</b>\n"
-            f"Монета: <b>{alert_config['coin_display']}</b> (ID: {hcode(alert_config['coin_id'])})\n"
-            f"Нижній поріг: <b>${alert_config['lower_target']:,.2f}</b>\n"
-            f"Верхній поріг: <b>${alert_config['upper_target']:,.2f}</b>\n\n"
-            "Щоб змінити, використайте /setpricealert.\n"
-            "Щоб вимкнути, використайте /removepricealert.",
-            parse_mode="HTML"
-        )
-    else:
-        await message.answer("У вас немає активних цінових сповіщень. Налаштуйте за допомогою /setpricealert.")
-
-# /removepricealert
-@dp.message(Command("removepricealert"))
-async def cmd_remove_price_alert(message: types.Message):
-    # ... (код этой функции из предыдущего ответа) ...
-    user_id = str(message.chat.id)
-    data = load_data()
-    user_config = data.get(user_id)
-
-    if user_config and user_config.get("price_alert_config") and user_config["price_alert_config"].get("is_active"):
-        user_config["price_alert_config"]["is_active"] = False 
-        data[user_id] = user_config
-        save_data(data)
-        await message.answer("🗑️ Ваше цінове сповіщення вимкнено. Ви більше не отримуватимете повідомлень по ньому.\n"
-                             "Щоб налаштувати нове, використайте /setpricealert.")
-    else:
-        await message.answer("У вас немає активних цінових сповіщень для вимкнення.")
-
-# /resetcrypto (теперь сбрасывает и price_alert_config)
 @dp.message(Command("resetcrypto")) 
 async def reset_crypto_all_cmd(message: types.Message):
     user_id = str(message.from_user.id)
     data = load_data()
     if user_id in data:
-        data[user_id] = get_default_user_config() # Сбрасываем на дефолтные значения, включая price_alert_config = None
+        data[user_id] = get_default_user_config() # Сбрасывает на дефолт без алертов
         save_data(data)
-        await message.answer("♻️ Всі ваші налаштування для криптовалют (включаючи цінове сповіщення) скинуто. /start щоб почати знову.")
+        await message.answer("♻️ Всі ваші налаштування для криптовалют скинуто. /start щоб почати знову.")
     else:
         await message.answer("У вас ще немає налаштувань для скидання.")
 
-# Callback reset_all_crypto (теперь сбрасывает и price_alert_config)
-@dp.callback_query(lambda c: c.data == "reset_all_crypto")
+@dp.callback_query(lambda c: c.data == "reset_all_crypto") # Этот callback был на кнопках под ценами
 async def reset_crypto_all_callback(callback_query: types.CallbackQuery):
     user_id = str(callback_query.from_user.id)
     data = load_data()
@@ -528,15 +377,13 @@ async def reset_crypto_all_callback(callback_query: types.CallbackQuery):
         data[user_id] = get_default_user_config()
         save_data(data)
     try:
-        await callback_query.message.edit_text("♻️ Всі ваші налаштування для криптовалют (включаючи цінове сповіщення) скинуто. /start щоб почати знову.")
+        await callback_query.message.edit_text("♻️ Всі ваші налаштування для криптовалют скинуто. /start щоб почати знову.")
     except Exception: 
-        await bot.send_message(user_id, "♻️ Всі ваші налаштування для криптовалют (включаючи цінове сповіщення) скинуто. /start щоб почати знову.")
+        await bot.send_message(user_id, "♻️ Всі ваші налаштування для криптовалют скинуто. /start щоб почати знову.")
     await callback_query.answer("Налаштування скинуто", show_alert=False)
 
-# /stopcryptonotifications
 @dp.message(Command("stopcryptonotifications"))
 async def stop_crypto_notifications_cmd(message: types.Message):
-    # ... (код этой функции без изменений, останавливает только регулярные уведомления) ...
     user_id = str(message.from_user.id)
     data = load_data()
     user_config = data.get(user_id)
@@ -544,92 +391,19 @@ async def stop_crypto_notifications_cmd(message: types.Message):
     if user_config and user_config.get("frequency") is not None:
         user_config["frequency"] = None
         user_config["notification_times_utc"] = [] 
+        # user_config["last_hourly_notification_hour_utc"] = -1 # Поле удалено
         data[user_id] = user_config
         save_data(data)
-        await message.answer("❌ Регулярні сповіщення про криптовалюти зупинені.")
+        await message.answer("❌ Сповіщення про криптовалюти зупинені.")
     else:
-        await message.answer("Регулярні сповіщення вже вимкнені або не були налаштовані.")
+        await message.answer("Сповіщення вже вимкнені або не були налаштовані.")
 
-
-# --- ПЛАНИРОВЩИК (ОБЪЕДИНЕННЫЙ) ---
-async def check_and_process_price_alerts(user_id_int: int, user_config: dict):
-    # ... (код этой функции из предыдущего ответа, с улучшенной обработкой цены) ...
-    alert_config = user_config.get("price_alert_config")
-    if not alert_config or not alert_config.get("is_active"):
-        return 
-
-    coin_id_to_check = alert_config.get("coin_id")
-    if not coin_id_to_check:
-        return
-
-    current_price_result = await fetch_price(coin_id_to_check) # Это уже возвращает float или строку ошибки
-    
-    if not isinstance(current_price_result, (int, float)):
-        # print(f"[{datetime.now(timezone.utc).isoformat()}] Не вдалося отримати числову ціну для {coin_id_to_check} для алерту користувача {user_id_int}. Отримано: {current_price_result}")
-        return 
-
-    current_price = current_price_result # Теперь это точно float
-
-    lower_target = alert_config.get("lower_target")
-    upper_target = alert_config.get("upper_target")
-    alert_sent_lower = alert_config.get("alert_sent_lower", False)
-    alert_sent_upper = alert_config.get("alert_sent_upper", False)
-    coin_display = alert_config.get("coin_display", coin_id_to_check.capitalize())
-
-    data_changed = False 
-
-    # Проверка нижнего порога
-    if lower_target is not None: # Убедимся, что порог установлен
-        if not alert_sent_lower and current_price <= lower_target:
-            message_text = (f"⚠️ <b>Ціновий ALERT!</b> ⚠️\n"
-                            f"Монета: <b>{coin_display}</b>\n"
-                            f"Ціна досягла або опустилася нижче вашого порогу: <b>${lower_target:,.2f}</b>\n"
-                            f"Поточна ціна: <b>${current_price:,.2f}</b>")
-            try:
-                await bot.send_message(user_id_int, message_text, parse_mode="HTML")
-                alert_config["alert_sent_lower"] = True
-                data_changed = True
-                print(f"[{datetime.now(timezone.utc).isoformat()}] Відправлено ALERT (нижній) для {user_id_int} по монеті {coin_display}")
-            except Exception as e:
-                print(f"Помилка відправки ALERT (нижній) для {user_id_int}: {e}")
-        
-        elif alert_sent_lower and current_price > lower_target * 1.002: 
-            alert_config["alert_sent_lower"] = False
-            data_changed = True
-            print(f"[{datetime.now(timezone.utc).isoformat()}] 'Перезаряджено' нижній ALERT для {user_id_int} по монеті {coin_display} (ціна: ${current_price:,.2f})")
-
-    # Проверка верхнего порога
-    if upper_target is not None: # Убедимся, что порог установлен
-        if not alert_sent_upper and current_price >= upper_target:
-            message_text = (f"⚠️ <b>Ціновий ALERT!</b> ⚠️\n"
-                            f"Монета: <b>{coin_display}</b>\n"
-                            f"Ціна досягла або перевищила ваш поріг: <b>${upper_target:,.2f}</b>\n"
-                            f"Поточна ціна: <b>${current_price:,.2f}</b>")
-            try:
-                await bot.send_message(user_id_int, message_text, parse_mode="HTML")
-                alert_config["alert_sent_upper"] = True
-                data_changed = True
-                print(f"[{datetime.now(timezone.utc).isoformat()}] Відправлено ALERT (верхній) для {user_id_int} по монеті {coin_display}")
-            except Exception as e:
-                print(f"Помилка відправки ALERT (верхній) для {user_id_int}: {e}")
-
-        elif alert_sent_upper and current_price < upper_target * 0.998: 
-            alert_config["alert_sent_upper"] = False
-            data_changed = True
-            print(f"[{datetime.now(timezone.utc).isoformat()}] 'Перезаряджено' верхній ALERT для {user_id_int} по монеті {coin_display} (ціна: ${current_price:,.2f})")
-
-    if data_changed:
-        all_users_data_local = load_data() 
-        if str(user_id_int) in all_users_data_local: 
-            # Обновляем только price_alert_config внутри существующего user_config
-            if "price_alert_config" in all_users_data_local[str(user_id_int)]:
-                 all_users_data_local[str(user_id_int)]["price_alert_config"].update(alert_config)
-            else: # Если вдруг его там не было, но должен быть после настройки
-                 all_users_data_local[str(user_id_int)]["price_alert_config"] = alert_config
-            save_data(all_users_data_local)
+# --- ПЛАНИРОВЩИК (УПРОЩЕННЫЙ) ---
+# Функция check_and_process_price_alerts удалена
 
 async def send_user_price_update(user_id_int: int, user_config: dict, frequency: str):
     # ... (код этой функции с использованием fetch_prices_batch, без изменений логики отображения ошибок) ...
+    # Убедимся, что она не пытается использовать удаленные поля типа last_hourly_...
     tokens_id_list = user_config.get("tokens_id", [])
     if not tokens_id_list:
         return
@@ -640,7 +414,6 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
         display_names = [tid.capitalize() for tid in tokens_id_list] 
 
     fetched_prices_map = await fetch_prices_batch(tokens_id_list)
-    # any_price_fetched = False # Можно удалить, если не используется для решения отправлять/не отправлять
 
     for i, token_cg_id in enumerate(tokens_id_list):
         price_result = fetched_prices_map.get(token_cg_id, "N/A") 
@@ -648,7 +421,6 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
         
         if isinstance(price_result, (int, float)):
             prices_info.append(f"{token_display_name}: ${price_result:,.2f}")
-            # any_price_fetched = True
         else: 
             error_display_text = "немає даних"
             if price_result == "ErrorAPI": error_display_text = "помилка API"
@@ -658,7 +430,9 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             elif price_result == "N/A": error_display_text = "недоступно"
             prices_info.append(f"{token_display_name}: {error_display_text}")
     
-    if not prices_info:
+    if not prices_info: # Если список токенов был, но цены не получены ни на один
+        # Можно отправить сообщение об ошибке или просто ничего не отправлять
+        print(f"[{datetime.now(timezone.utc).isoformat()}] Немає даних про ціни для відправки користувачу {user_id_int}")
         return
 
     freq_text_for_msg = get_frequency_description_text(frequency, user_config.get("notification_times_utc"))
@@ -666,9 +440,11 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
     message_body = "\n".join(prices_info)
     final_message = f"{header}\n{message_body}"
     
+    # Кнопки под сообщением с ценами
     kb_after_price = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="♻️ Скинути налаштування", callback_data="reset_all_crypto")],
-        [InlineKeyboardButton(text="❌ Зупинити ці сповіщення", callback_data="setfreq_off")]
+        # Кнопка "Зупинити ці сповіщення" теперь просто отключает частоту
+        [InlineKeyboardButton(text="❌ Зупинити ці сповіщення", callback_data="setfreq_off")] 
     ])
     try:
         await bot.send_message(user_id_int, final_message, reply_markup=kb_after_price, parse_mode="HTML")
@@ -685,9 +461,8 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             print(f"Не вдалося надіслати повідомлення користувачу {user_id_int}: {e}")
 
 async def price_update_scheduler():
-    # ... (обновленный код этой функции с вызовом send_user_price_update и check_and_process_price_alerts)
-    await asyncio.sleep(15) 
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник сповіщень (регулярні + цінові алерти) запущено.")
+    await asyncio.sleep(10) # Даем боту время запуститься
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 1 хвилина).")
     
     while True:
         now_utc = datetime.now(timezone.utc) 
@@ -695,71 +470,73 @@ async def price_update_scheduler():
         current_hour_utc = now_utc.hour
         
         all_users_data = load_data() 
-        
-        active_tasks = [] # Собираем все задачи (регулярные и алерты) в один список
+        active_tasks_for_gather = []
 
-        for user_id_str, user_config in all_users_data.items():
+        for user_id_str, user_config_original in all_users_data.items():
             try:
                 user_id_int = int(user_id_str) 
             except ValueError:
                 continue
 
-            # --- Логика для регулярных обновлений ---
+            user_config = user_config_original.copy() 
+
             frequency = user_config.get("frequency")
             tokens_id_list = user_config.get("tokens_id")
             should_send_regular = False
+
             if frequency and tokens_id_list:
-                if frequency == "hourly" and now_utc.minute == 0: should_send_regular = True
-                elif frequency == "2_hours" and current_hour_utc % 2 == 0 and now_utc.minute == 0: should_send_regular = True
+                if frequency == "hourly":
+                    if now_utc.minute == 0: # Точно в начале часа
+                        should_send_regular = True
+                elif frequency == "2_hours":
+                    if current_hour_utc % 2 == 0 and now_utc.minute == 0: # Точно в начале четного часа
+                        should_send_regular = True
                 elif frequency == "daily_1":
                     times_utc = user_config.get("notification_times_utc", [])
-                    if times_utc and current_time_utc_str == times_utc[0]: should_send_regular = True
+                    if times_utc and current_time_utc_str == times_utc[0]:
+                        should_send_regular = True
                 elif frequency == "daily_2":
                     times_utc = user_config.get("notification_times_utc", [])
-                    if times_utc and current_time_utc_str in times_utc: should_send_regular = True
+                    if times_utc and current_time_utc_str in times_utc: 
+                        should_send_regular = True
             
             if should_send_regular:
-                active_tasks.append(send_user_price_update(user_id_int, user_config.copy(), frequency)) # .copy() для безопасности
-            
-            # --- Логика для ценовых алертов ---
-            if user_config.get("price_alert_config") and user_config["price_alert_config"].get("is_active"):
-                active_tasks.append(check_and_process_price_alerts(user_id_int, user_config.copy())) # .copy()
+                active_tasks_for_gather.append(send_user_price_update(user_id_int, user_config, frequency))
         
-        if active_tasks:
-            print(f"[{datetime.now(timezone.utc).isoformat()}] Знайдено {len(active_tasks)} завдань для виконання (регулярні/алерти).")
-            # Выполняем все задачи параллельно, обрабатывая исключения, чтобы одна упавшая задача не остановила все
-            results = await asyncio.gather(*active_tasks, return_exceptions=True)
+        if active_tasks_for_gather:
+            current_iso_time = datetime.now(timezone.utc).isoformat()
+            print(f"[{current_iso_time}] Знайдено {len(active_tasks_for_gather)} регулярних сповіщень для відправки.")
+            
+            results = await asyncio.gather(*active_tasks_for_gather, return_exceptions=True)
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    print(f"[{datetime.now(timezone.utc).isoformat()}] Помилка у фоновому завданні {active_tasks[i].__name__ if hasattr(active_tasks[i], '__name__') else 'task'}: {result}")
-
-        await asyncio.sleep(60)
-
+                    task_name = "task"
+                    try:
+                        original_coro = active_tasks_for_gather[i]
+                        task_name = original_coro.__qualname__ if hasattr(original_coro, '__qualname__') else original_coro.__name__
+                    except Exception:
+                        pass
+                    print(f"[{current_iso_time}] Помилка у фоновому завданні '{task_name}': {result}")
+        
+        await asyncio.sleep(60) # ИНТЕРВАЛ 1 МИНУТА
 # --- ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (АДМИН / ПОИСК ТОКЕНА) ---
 @dp.message() 
-async def handle_text_input(message: types.Message, state: FSMContext): # Добавили state
-    # Сначала проверяем, не находимся ли мы в каком-либо состоянии FSM
-    current_fsm_state = await state.get_state()
-    if current_fsm_state is not None:
-        # Если мы в состоянии FSM, этот хендлер не должен перехватывать ввод,
-        # предназначенный для FSM. Хендлеры состояний должны сработать раньше.
-        # Однако, если они не сработали, можно вывести сообщение или ничего не делать.
-        # print(f"Сообщение '{message.text}' получено в состоянии FSM: {current_fsm_state}, но не обработано хендлером состояния.")
-        return 
-        
+async def handle_text_input(message: types.Message): # Убрали FSMContext, т.к. FSM удален
     user_id_str = str(message.chat.id)
     text = message.text.strip()
     
+    # 1. Логика администратора
     if message.from_user.id in ADMIN_IDS:
         if not text.startswith("/"): 
             all_users_data = load_data()
             sent_count = 0
             failed_count = 0
             
-            active_subscribers = [uid_s for uid_s, info in all_users_data.items() if info.get("frequency") or (info.get("price_alert_config") and info["price_alert_config"].get("is_active"))] # Админ пишет всем активным
+            # Админ пишет всем, у кого настроена любая частота (т.е. они активны)
+            active_subscribers = [uid_s for uid_s, info in all_users_data.items() if info.get("frequency")]
 
             if not active_subscribers:
-                await message.answer("Немає активних користувачів для розсилки (з налаштованою частотою або ціновим алертом).")
+                await message.answer("Немає активних користувачів для розсилки (з налаштованою частотою).")
                 return
 
             for uid_to_send_str in active_subscribers:
@@ -776,6 +553,7 @@ async def handle_text_input(message: types.Message, state: FSMContext): # Доб
                                  f"Помилок: {failed_count}")
             return 
 
+    # 2. Логика поиска и добавления токена по текстовому вводу
     if text and not text.startswith("/"):
         all_users_data = load_data() 
         user_config = all_users_data.get(user_id_str, get_default_user_config())
@@ -784,7 +562,7 @@ async def handle_text_input(message: types.Message, state: FSMContext): # Доб
         tokens_display_list = user_config.get("tokens_display", [])
 
         if len(tokens_id_list) >= 5:
-            await message.answer("❗ Ти вже обрав 5 монет для регулярних сповіщень. Максимум.\nЩоб змінити, використай /resetcrypto і додай нові.")
+            await message.answer("❗ Ти вже обрав 5 монет. Максимум.\nЩоб змінити, використай /resetcrypto і додай нові.")
             return
 
         coin_id, coin_name, coin_symbol_api = await search_token(text.lower())
@@ -796,7 +574,7 @@ async def handle_text_input(message: types.Message, state: FSMContext): # Доб
         display_name_to_add = coin_symbol_api.upper() if coin_symbol_api else coin_name
 
         if coin_id in tokens_id_list:
-            await message.answer(f"ℹ️ Монета {display_name_to_add} (ID: {hcode(coin_id)}) вже обрана для регулярних сповіщень.", parse_mode="HTML")
+            await message.answer(f"ℹ️ Монета {display_name_to_add} (ID: {hcode(coin_id)}) вже обрана.", parse_mode="HTML")
             return
 
         tokens_id_list.append(coin_id)
@@ -807,12 +585,12 @@ async def handle_text_input(message: types.Message, state: FSMContext): # Доб
         all_users_data[user_id_str] = user_config
         save_data(all_users_data)
 
-        await message.answer(f"✅ Додано для регулярних сповіщень: {display_name_to_add} (ID: {hcode(coin_id)})", parse_mode="HTML")
+        await message.answer(f"✅ Додано: {display_name_to_add} (ID: {hcode(coin_id)})", parse_mode="HTML")
         
         if len(tokens_id_list) >= 5:
-            await message.answer("Ви обрали 5 монет для регулярних сповіщень. Тепер налаштуйте частоту: /setfrequency")
+            await message.answer("Ви обрали 5 монет. Тепер налаштуйте частоту сповіщень: /setfrequency")
         elif len(tokens_id_list) > 0:
-            await message.answer("Щоб налаштувати частоту регулярних сповіщень, використайте /setfrequency")
+            await message.answer("Щоб налаштувати частоту сповіщень, використайте /setfrequency")
         return 
 
 # --- ЗАПУСК БОТА ---
@@ -822,15 +600,14 @@ async def main():
     dp.message.register(my_config_cmd, Command(commands=["mycryptoconfig"]))
     dp.message.register(set_frequency_cmd, Command(commands=["setfrequency"]))
     
-    # FSM для price alert
-    dp.message.register(cmd_set_price_alert_start, Command(commands=["setpricealert"]))
-    dp.message.register(process_alert_coin_ticker, PriceAlertStates.waiting_coin_ticker)
-    dp.message.register(process_alert_lower_target, PriceAlertStates.waiting_lower_target)
-    dp.message.register(process_alert_upper_target, PriceAlertStates.waiting_upper_target)
-    dp.message.register(cancel_alert_setup, Command(commands=["cancelalert"]), PriceAlertStates.any_state)
+    # FSM хендлеры УДАЛЕНЫ
+    # dp.message.register(cmd_set_price_alert_start, Command(commands=["setpricealert"]))
+    # ... и другие FSM хендлеры ...
+    # dp.message.register(cancel_alert_setup, Command(commands=["cancelalert"]), PriceAlertStates.any_state)
 
-    dp.message.register(cmd_my_price_alert, Command(commands=["mypricealert"]))
-    dp.message.register(cmd_remove_price_alert, Command(commands=["removepricealert"]))
+    # Команды для алертов УДАЛЕНЫ
+    # dp.message.register(cmd_my_price_alert, Command(commands=["mypricealert"]))
+    # dp.message.register(cmd_remove_price_alert, Command(commands=["removepricealert"]))
 
     dp.message.register(reset_crypto_all_cmd, Command(commands=["resetcrypto"]))
     dp.message.register(stop_crypto_notifications_cmd, Command(commands=["stopcryptonotifications"]))
@@ -838,16 +615,14 @@ async def main():
     dp.callback_query.register(add_token_callback, lambda c: c.data.startswith("add_"))
     dp.callback_query.register(process_frequency_callback, lambda c: c.data.startswith("setfreq_"))
     dp.callback_query.register(reset_crypto_all_callback, lambda c: c.data == "reset_all_crypto")
-    # Callback для `setfreq_off` (остановка регулярных уведомлений) уже обрабатывается в `process_frequency_callback`
 
-    # Текстовый обработчик должен быть последним из dp.message.register
     dp.message.register(handle_text_input) 
 
     asyncio.create_task(price_update_scheduler())
     
     print(f"[{datetime.now(timezone.utc).isoformat()}] Бот запускається...")
     try:
-        await dp.start_polling(bot, skip_updates=True) # skip_updates=True может быть полезно при перезапуске
+        await dp.start_polling(bot, skip_updates=True)
     finally:
         await bot.session.close() 
         print(f"[{datetime.now(timezone.utc).isoformat()}] Бот зупинено.")

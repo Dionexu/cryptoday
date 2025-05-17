@@ -429,17 +429,14 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             print(f"Не вдалося надіслати повідомлення користувачу {user_id_int}: {e}")
 
 async def price_update_scheduler():
-    # ДОБАВЛЕНО ЛОГИРОВАНИЕ В НАЧАЛЕ ФУНКЦИИ
     print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: ЗАПУСК ФУНКЦІЇ.")
     await asyncio.sleep(10) # Уменьшили начальный sleep для быстрого теста первого цикла
-    # ИЗМЕНЕНО СООБЩЕНИЕ О ЗАПУСКЕ И ИНТЕРВАЛ
     print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (початковий sleep пройдено, основний інтервал ~5 хвилин).")
     
-    cycle_count = 0 # Счетчик циклов для отладки
+    cycle_count = 0 
     while True:
         cycle_count += 1
         current_iso_time_loop_start = datetime.now(timezone.utc).isoformat()
-        # ДОБАВЛЕНО ЛОГИРОВАНИЕ НАЧАЛА ЦИКЛА
         print(f"[{current_iso_time_loop_start}] price_update_scheduler: Початок циклу #{cycle_count}")
 
         now_utc = datetime.now(timezone.utc) 
@@ -481,24 +478,22 @@ async def price_update_scheduler():
                 active_tasks_for_gather.append(send_user_price_update(user_id_int, user_config, frequency))
         
         if active_tasks_for_gather:
-            current_iso_time = datetime.now(timezone.utc).isoformat()
-            print(f"[{current_iso_time}] price_update_scheduler: Знайдено {len(active_tasks_for_gather)} регулярних сповіщень для відправки у циклі #{cycle_count}.") # Уточнено лог
+            current_iso_time_gather = datetime.now(timezone.utc).isoformat() # Переименовал, чтобы не конфликтовать
+            print(f"[{current_iso_time_gather}] price_update_scheduler: Знайдено {len(active_tasks_for_gather)} регулярних сповіщень для відправки у циклі #{cycle_count}.")
             
             results = await asyncio.gather(*active_tasks_for_gather, return_exceptions=True)
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     task_name = "task"
                     try:
-                        original_coro = active_tasks_for_gather[i]
+                        original_coro = active_tasks_for_gather[i] # Используем измененное имя
                         task_name = original_coro.__qualname__ if hasattr(original_coro, '__qualname__') else original_coro.__name__
                     except Exception:
                         pass
-                    print(f"[{current_iso_time}] price_update_scheduler: Помилка у фоновому завданні '{task_name}' у циклі #{cycle_count}: {result}") # Уточнено лог
-        else: # Добавлено логирование, если нет задач
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: Помилка у фоновому завданні '{task_name}' у циклі #{cycle_count}: {result}")
+        else: 
              print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: Немає активних завдань для gather у циклі #{cycle_count}")
 
-
-        # ДОБАВЛЕНО ЛОГИРОВАНИЕ КОНЦА ЦИКЛА
         print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: Кінець циклу #{cycle_count}. Наступна перевірка через ~5 хвилин.")
         await asyncio.sleep(300) # ИНТЕРВАЛ 5 МИНУТ (300 секунд)
 
@@ -586,7 +581,6 @@ async def handle_text_input(message: types.Message):
 
 # --- ЗАПУСК БОТА ---
 async def main(): 
-    # ДОБАВЛЕНО ЛОГИРОВАНИЕ
     print(f"[{datetime.now(timezone.utc).isoformat()}] main: РЕЄСТРАЦІЯ ХЕНДЛЕРІВ...")
     dp.message.register(start_cmd, Command(commands=["start"]))
     dp.message.register(my_config_cmd, Command(commands=["mycryptoconfig"]))
@@ -610,29 +604,34 @@ async def main():
     try:
         await dp.start_polling(bot, skip_updates=True)
     except Exception as e:
-        # ДОБАВЛЕНО ЛОГИРОВАНИЕ КРИТИЧЕСКОЙ ОШИБКИ
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: КРИТИЧНА ПОМИЛКА В START_POLLING: {e}")
-        # Пробрасываем ошибку дальше, если нужно, или просто логируем и завершаемся
         raise
     finally:
-        # ДОБАВЛЕНО ЛОГИРОВАНИЕ В finally
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: Блок finally - зупинка бота.")
         if scheduler_task and not scheduler_task.done():
             print(f"[{datetime.now(timezone.utc).isoformat()}] main: Скасування завдання планувальника...")
             scheduler_task.cancel()
             try:
-                await scheduler_task # Даем задаче завершиться после отмены
+                await scheduler_task 
             except asyncio.CancelledError:
                 print(f"[{datetime.now(timezone.utc).isoformat()}] main: Завдання планувальника успішно скасовано.")
-            except Exception as e_task: # Ловим другие возможные ошибки при ожидании отмененной задачи
+            except Exception as e_task: 
                  print(f"[{datetime.now(timezone.utc).isoformat()}] main: Помилка під час очікування скасованого завдання планувальника: {e_task}")
 
-        if bot.session and not bot.session.closed: # Проверяем, что сессия существует и не закрыта
-            print(f"[{datetime.now(timezone.utc).isoformat()}] main: Закриття сесії бота...")
-            await bot.session.close() 
-            print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесію бота закрито.")
+        if bot.session: 
+            try:
+                if not bot.session.closed: 
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] main: Закриття сесії бота...")
+                    await bot.session.close()
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесію бота закрито.")
+                else:
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесія бота вже була закрита.")
+            except AttributeError: 
+                print(f"[{datetime.now(timezone.utc).isoformat()}] main: Не вдалося перевірити стан сесії (можливо, вона вже некоректна). Пропускаємо закриття.")
+            except Exception as e_session_close: 
+                 print(f"[{datetime.now(timezone.utc).isoformat()}] main: Помилка під час спроби закрити сесію бота: {e_session_close}")
         else:
-            print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесія бота вже закрита або не існує.")
+            print(f"[{datetime.now(timezone.utc).isoformat()}] main: Об'єкт сесії бота відсутній, закриття не потрібне.")
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: Бот остаточно зупинено.")
 
 
@@ -641,5 +640,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print(f"[{datetime.now(timezone.utc).isoformat()}] Зупинка бота вручну (Ctrl+C)")
-    except Exception as e: # Ловим другие возможные исключения на верхнем уровне
+    except Exception as e: 
         print(f"[{datetime.now(timezone.utc).isoformat()}] Виникла неперехоплена критична помилка під час запуску: {e}")

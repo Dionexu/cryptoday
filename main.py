@@ -2,22 +2,22 @@ import os
 import json
 import aiohttp
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.utils.markdown import hcode
 
 # --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_БОТ_ТОКЕН_ТУТ") 
-if BOT_TOKEN == "ВАШ_БОТ_ТОКЕН_ТУТ":
-    print("ПОПЕРЕДЖЕННЯ: Будь ласка, встановіть ваш справжній BOT_TOKEN!")
-    # exit() 
+BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_БОТ_ТОКЕН_ТУТ_ЗАМЕНИТЕ_ИЛИ_УСТАНОВИТЕ_ПЕРЕМЕННУЮ") 
+if BOT_TOKEN == "ВАШ_БОТ_ТОКЕН_ТУТ_ЗАМЕНИТЕ_ИЛИ_УСТАНОВИТЕ_ПЕРЕМЕННУЮ":
+    print(f"[{datetime.now(timezone.utc).isoformat()}] ПОПЕРЕДЖЕННЯ: КРИТИЧНО! Будь ласка, встановіть ваш справжній BOT_TOKEN!")
+    exit() 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-DATA_FILE = "user_crypto_preferences_simplified.json" 
+DATA_FILE = "user_crypto_stable_final.json" 
 
 POPULAR_TOKENS_MAP = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana', 
@@ -38,10 +38,10 @@ def load_data():
                     return {}
                 return json.loads(content)
         except json.JSONDecodeError:
-            print(f"Помилка декодування JSON з файлу {DATA_FILE}.")
+            print(f"[{datetime.now(timezone.utc).isoformat()}] Помилка декодування JSON з файлу {DATA_FILE}.")
             return {}
         except Exception as e:
-            print(f"Не вдалося завантажити дані: {e}")
+            print(f"[{datetime.now(timezone.utc).isoformat()}] Не вдалося завантажити дані: {e}")
             return {}
     return {}
 
@@ -50,7 +50,7 @@ def save_data(data):
         with open(DATA_FILE, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
     except Exception as e:
-        print(f"Не вдалося зберегти дані: {e}")
+        print(f"[{datetime.now(timezone.utc).isoformat()}] Не вдалося зберегти дані: {e}")
 
 def get_default_user_config():
     return {
@@ -61,37 +61,6 @@ def get_default_user_config():
     }
 
 # --- ФУНКЦИИ ДЛЯ API COINGECKO ---
-async def fetch_price(symbol_id: str) -> str | float: 
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol_id}&vs_currencies=usd"
-    log_prefix = f"[{datetime.now(timezone.utc).isoformat()}] FetchPrice ({symbol_id}):"
-    try:
-        async with aiohttp.ClientSession() as session:
-            headers = {'User-Agent': 'Mozilla/5.0 (TelegramBot/1.0)'}
-            async with session.get(url, timeout=15, headers=headers) as resp:
-                response_text = await resp.text()
-                if resp.status == 200:
-                    data = json.loads(response_text)
-                    price_data = data.get(symbol_id, {})
-                    price = price_data.get("usd")
-                    if price is not None:
-                        return float(price) 
-                    else:
-                        print(f"{log_prefix} 'usd' price not found in response: {data}")
-                        return "NoPriceData"
-                else:
-                    print(f"{log_prefix} API Error. Status: {resp.status}, Response: {response_text}")
-                    return "ErrorAPI" 
-    except asyncio.TimeoutError:
-        print(f"{log_prefix} API Timeout.")
-        return "Timeout"
-    except aiohttp.ClientConnectorError as e:
-        print(f"{log_prefix} API Connection Error: {e}")
-        return "ConnectionError"
-    except Exception as e:
-        print(f"{log_prefix} API General Error: {e}")
-        return "Error"
-    return "N/A"
-
 async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
     if not symbol_ids:
         return {}
@@ -115,6 +84,7 @@ async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
                             results[symbol_id] = float(price)
                         else:
                             results[symbol_id] = "NoPriceData"
+                    # print(f"{log_prefix} Успішно отримано ціни.") 
                     return results
                 else:
                     print(f"{log_prefix} API Error. Status: {resp.status}, Response: {response_text}")
@@ -153,21 +123,34 @@ async def search_token(query: str):
     return None, None, None
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-def get_frequency_description_text(freq_code: str | None, notification_times_utc: list | None = None) -> str:
+def get_frequency_description_text(user_config: dict) -> str: # Принимает user_config
+    freq_code = user_config.get("frequency")
+    notification_times_utc = user_config.get("notification_times_utc", [])
+    # utc_offset = user_config.get("utc_offset_hours") # Пока не используем offset в описании частоты
+
     if not freq_code:
         return "не встановлена (сповіщення вимкнені)"
-    if freq_code == "hourly":
-        return "Щогодини"
-    elif freq_code == "2_hours":
-        return "Кожні 2 години"
+    
+    desc = ""
+    if freq_code == "hourly": desc = "Щогодини"
+    elif freq_code == "2_hours": desc = "Кожні 2 години"
     elif freq_code == "daily_1":
-        time_str = notification_times_utc[0] if notification_times_utc and notification_times_utc[0] else "09:00"
-        return f"1 раз на день (о {time_str} UTC)"
+        desc = "1 раз на день"
+        if notification_times_utc:
+            utc_hour_str = notification_times_utc[0] 
+            desc += f" о {utc_hour_str} UTC" # Показываем UTC, т.к. пользователь выбирал UTC время
+        else:
+            desc += " (час не налаштовано)"
     elif freq_code == "daily_2":
-        t1 = notification_times_utc[0] if notification_times_utc and len(notification_times_utc) > 0 else "09:00"
-        t2 = notification_times_utc[1] if notification_times_utc and len(notification_times_utc) > 1 else "21:00"
-        return f"2 рази на день (о {t1} та {t2} UTC)"
-    return "Невідома частота"
+        desc = "2 рази на день"
+        if len(notification_times_utc) == 2:
+            utc_h1_str, utc_h2_str = notification_times_utc[0], notification_times_utc[1]
+            desc += f" о {utc_h1_str} та {utc_h2_str} UTC" # Показываем UTC
+        else:
+            desc += " (час не налаштовано)"
+    else:
+        return "Невідома частота"
+    return desc
 
 # --- ОБРАБОТЧИКИ КОМАНД И CALLBACK ---
 @dp.message(Command("start"))
@@ -221,9 +204,8 @@ async def my_config_cmd(message: types.Message):
     if not tokens_display_str:
         tokens_display_str = "не обрано"
     
-    frequency_code = user_config.get("frequency")
-    notification_times = user_config.get("notification_times_utc")
-    freq_desc = get_frequency_description_text(frequency_code, notification_times)
+    # Передаем весь user_config для корректного отображения времени с учетом пояса (если бы он был)
+    freq_desc = get_frequency_description_text(user_config) 
 
     await message.answer(
         f"<b>⚙️ Ваші поточні налаштування:</b>\n\n"
@@ -241,7 +223,7 @@ async def add_token_callback(callback_query: types.CallbackQuery):
         _, coin_id, display_ticker = callback_query.data.split("_", 2)
     except ValueError:
         await callback_query.answer("Помилка даних кнопки.", show_alert=True)
-        print(f"Неправильний формат callback_data: {callback_query.data}")
+        print(f"[{datetime.now(timezone.utc).isoformat()}] Неправильний формат callback_data: {callback_query.data}")
         return
 
     data = load_data()
@@ -288,7 +270,7 @@ async def set_frequency_cmd(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Щогодини", callback_data="setfreq_hourly")],
         [InlineKeyboardButton(text="Кожні 2 години", callback_data="setfreq_2_hours")],
-        [InlineKeyboardButton(text="1 раз на день (09:00 UTC)", callback_data="setfreq_daily_1_09:00")],
+        [InlineKeyboardButton(text="1 раз на день (09:00 UTC)", callback_data="setfreq_daily_1_09:00")], # Оставляем UTC для простоты
         [InlineKeyboardButton(text="2 рази на день (09:00, 21:00 UTC)", callback_data="setfreq_daily_2_09:00_21:00")],
         [InlineKeyboardButton(text="🚫 Вимкнути сповіщення", callback_data="setfreq_off")]
     ])
@@ -327,13 +309,12 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     data[user_id] = user_config
     save_data(data)
     
-    final_freq_desc = get_frequency_description_text(new_frequency, new_times_utc)
+    final_freq_desc = get_frequency_description_text(user_config) # Передаем весь user_config
     await callback_query.message.edit_text(f"✅ Частоту сповіщень оновлено: <b>{final_freq_desc}</b>", parse_mode="HTML")
     if new_frequency: 
       await callback_query.answer(f"Частоту встановлено: {final_freq_desc}", show_alert=False)
     else:
       await callback_query.answer("Сповіщення вимкнено.", show_alert=False)
-
 @dp.message(Command("resetcrypto")) 
 async def reset_crypto_all_cmd(message: types.Message):
     user_id = str(message.from_user.id)
@@ -341,7 +322,7 @@ async def reset_crypto_all_cmd(message: types.Message):
     if user_id in data:
         data[user_id] = get_default_user_config()
         save_data(data)
-        await message.answer("♻️ Всі ваші налаштування для криптовалют скинуто. /start щоб почати знову.")
+        await message.answer("♻️ Всі ваші налаштування для криптовалют скинуto. /start щоб почати знову.")
     else:
         await message.answer("У вас ще немає налаштувань для скидання.")
 
@@ -402,10 +383,10 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             prices_info.append(f"{token_display_name}: {error_display_text}")
     
     if not prices_info:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] Немає даних про ціни для відправки користувачу {user_id_int}")
+        print(f"[{datetime.now(timezone.utc).isoformat()}] send_user_price_update: Немає даних про ціни для формування повідомлення користувачу {user_id_int}")
         return
 
-    freq_text_for_msg = get_frequency_description_text(frequency, user_config.get("notification_times_utc"))
+    freq_text_for_msg = get_frequency_description_text(user_config)
     header = f"<b>📈 Оновлення цін ({freq_text_for_msg.lower()})</b>"
     message_body = "\n".join(prices_info)
     final_message = f"{header}\n{message_body}"
@@ -416,21 +397,22 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
     ])
     try:
         await bot.send_message(user_id_int, final_message, reply_markup=kb_after_price, parse_mode="HTML")
+        print(f"[{datetime.now(timezone.utc).isoformat()}] send_user_price_update: Надіслано регулярне сповіщення для {user_id_int}")
     except Exception as e:
         error_msg = str(e).lower()
         user_id_str = str(user_id_int) 
         if "bot was blocked" in error_msg or "user is deactivated" in error_msg or "chat not found" in error_msg:
-            print(f"Користувач {user_id_int} заблокував бота або не існує. Видалення даних...")
+            print(f"[{datetime.now(timezone.utc).isoformat()}] send_user_price_update: Користувач {user_id_int} заблокував бота або не існує. Видалення даних...")
             current_data_for_delete = load_data()
             if user_id_str in current_data_for_delete:
                 del current_data_for_delete[user_id_str]
                 save_data(current_data_for_delete)
         else:
-            print(f"Не вдалося надіслати повідомлення користувачу {user_id_int}: {e}")
+            print(f"[{datetime.now(timezone.utc).isoformat()}] send_user_price_update: Не вдалося надіслати повідомлення користувачу {user_id_int}: {e}")
 
 async def price_update_scheduler():
     print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: ЗАПУСК ФУНКЦІЇ.")
-    await asyncio.sleep(10) # Уменьшили начальный sleep для быстрого теста первого цикла
+    await asyncio.sleep(10) 
     print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (початковий sleep пройдено, основний інтервал ~5 хвилин).")
     
     cycle_count = 0 
@@ -478,16 +460,17 @@ async def price_update_scheduler():
                 active_tasks_for_gather.append(send_user_price_update(user_id_int, user_config, frequency))
         
         if active_tasks_for_gather:
-            current_iso_time_gather = datetime.now(timezone.utc).isoformat() # Переименовал, чтобы не конфликтовать
+            current_iso_time_gather = datetime.now(timezone.utc).isoformat()
             print(f"[{current_iso_time_gather}] price_update_scheduler: Знайдено {len(active_tasks_for_gather)} регулярних сповіщень для відправки у циклі #{cycle_count}.")
             
             results = await asyncio.gather(*active_tasks_for_gather, return_exceptions=True)
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    task_name = "task"
+                    task_name = f"task_{i}" 
                     try:
-                        original_coro = active_tasks_for_gather[i] # Используем измененное имя
-                        task_name = original_coro.__qualname__ if hasattr(original_coro, '__qualname__') else original_coro.__name__
+                        original_coro = active_tasks_for_gather[i]
+                        if asyncio.iscoroutine(original_coro): # Проверяем, что это корутина
+                             task_name = original_coro.__qualname__ if hasattr(original_coro, '__qualname__') else original_coro.__name__
                     except Exception:
                         pass
                     print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: Помилка у фоновому завданні '{task_name}' у циклі #{cycle_count}: {result}")
@@ -508,7 +491,10 @@ async def handle_text_input(message: types.Message):
 
     is_admin = message.from_user.id in ADMIN_IDS
     all_users_data = load_data()
-    user_config = all_users_data.get(user_id_str, get_default_user_config())
+    user_config = all_users_data.get(user_id_str) 
+    if user_config is None: 
+        user_config = get_default_user_config()
+        all_users_data[user_id_str] = user_config 
 
     coin_id_search, coin_name_search, coin_symbol_api_search = await search_token(text.lower())
     was_coin_addition_attempt = bool(coin_id_search) 
@@ -517,11 +503,16 @@ async def handle_text_input(message: types.Message):
         is_long_message_for_broadcast = len(text.split()) > 3 or len(text) > 20 
         user_tokens_id_list_for_admin = user_config.get("tokens_id", [])
 
-        if (not was_coin_addition_attempt or 
-            len(user_tokens_id_list_for_admin) >= 5 or 
-            is_long_message_for_broadcast):
-            
-            print(f"Адміністратор {message.from_user.id} надсилає розсилку: '{text}'")
+        is_broadcast = False
+        if not was_coin_addition_attempt: 
+            is_broadcast = True
+        elif len(user_tokens_id_list_for_admin) >= 5: 
+            is_broadcast = True
+        elif is_long_message_for_broadcast: 
+             is_broadcast = True
+        
+        if is_broadcast:
+            print(f"[{datetime.now(timezone.utc).isoformat()}] Адміністратор {message.from_user.id} надсилає розсилку: '{text}'")
             sent_count = 0
             failed_count = 0
             active_subscribers = [uid_s for uid_s, info in all_users_data.items() if info.get("frequency")]
@@ -547,7 +538,7 @@ async def handle_text_input(message: types.Message):
             return 
 
     if was_coin_addition_attempt:
-        tokens_id_list = user_config.get("tokens_id", [])
+        tokens_id_list = user_config.get("tokens_id", []) 
         tokens_display_list = user_config.get("tokens_display", [])
 
         if len(tokens_id_list) >= 5:
@@ -565,7 +556,6 @@ async def handle_text_input(message: types.Message):
         
         user_config["tokens_id"] = tokens_id_list
         user_config["tokens_display"] = tokens_display_list
-        all_users_data[user_id_str] = user_config
         save_data(all_users_data)
 
         await message.answer(f"✅ Додано: {display_name_to_add} (ID: {hcode(coin_id_search)})", parse_mode="HTML")
@@ -605,7 +595,7 @@ async def main():
         await dp.start_polling(bot, skip_updates=True)
     except Exception as e:
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: КРИТИЧНА ПОМИЛКА В START_POLLING: {e}")
-        raise
+        raise 
     finally:
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: Блок finally - зупинка бота.")
         if scheduler_task and not scheduler_task.done():
@@ -620,14 +610,15 @@ async def main():
 
         if bot.session: 
             try:
-                if not bot.session.closed: 
+                is_session_closed = getattr(bot.session, 'closed', True) 
+                if not is_session_closed: 
                     print(f"[{datetime.now(timezone.utc).isoformat()}] main: Закриття сесії бота...")
                     await bot.session.close()
                     print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесію бота закрито.")
                 else:
-                    print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесія бота вже була закрита.")
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] main: Сесія бота вже була закрита або атрибут 'closed' відсутній.")
             except AttributeError: 
-                print(f"[{datetime.now(timezone.utc).isoformat()}] main: Не вдалося перевірити стан сесії (можливо, вона вже некоректна). Пропускаємо закриття.")
+                print(f"[{datetime.now(timezone.utc).isoformat()}] main: Не вдалося перевірити стан сесії (AttributeError). Пропускаємо закриття.")
             except Exception as e_session_close: 
                  print(f"[{datetime.now(timezone.utc).isoformat()}] main: Помилка під час спроби закрити сесію бота: {e_session_close}")
         else:

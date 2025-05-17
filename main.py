@@ -7,7 +7,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.utils.markdown import hcode
-# FSM больше не используется, соответствующие импорты удалены
 
 # --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_БОТ_ТОКЕН_ТУТ") 
@@ -18,7 +17,7 @@ if BOT_TOKEN == "ВАШ_БОТ_ТОКЕН_ТУТ":
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-DATA_FILE = "user_crypto_preferences_final.json" # Новое имя файла
+DATA_FILE = "user_crypto_preferences_simplified.json" 
 
 POPULAR_TOKENS_MAP = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana', 
@@ -255,7 +254,7 @@ async def add_token_callback(callback_query: types.CallbackQuery):
         await callback_query.answer(f"{display_ticker} вже обрано", show_alert=False)
         return
 
-    if len(tokens_id_list) >= 5:
+    if len(tokens_id_list) >= 5: 
         await callback_query.answer("Вже обрано 5 монет. Максимум.", show_alert=True)
         return
 
@@ -324,7 +323,7 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     
     user_config["frequency"] = new_frequency
     user_config["notification_times_utc"] = new_times_utc
-    
+        
     data[user_id] = user_config
     save_data(data)
     
@@ -431,7 +430,7 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
 
 async def price_update_scheduler():
     await asyncio.sleep(10) 
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 1 хвилина).")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 3 хвилини).")
     
     while True:
         now_utc = datetime.now(timezone.utc) 
@@ -487,7 +486,7 @@ async def price_update_scheduler():
                         pass
                     print(f"[{current_iso_time}] Помилка у фоновому завданні '{task_name}': {result}")
         
-        await asyncio.sleep(60) # ИНТЕРВАЛ 1 МИНУТА
+        await asyncio.sleep(180) # ИНТЕРВАЛ 3 МИНУТЫ (180 секунд)
 
 # --- ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (АДМИН / ПОИСК ТОКЕНА) ---
 @dp.message() 
@@ -568,9 +567,8 @@ async def handle_text_input(message: types.Message):
             await message.answer("Щоб налаштувати частоту сповіщень, використайте /setfrequency")
         return
     
-    if not is_admin and not was_coin_addition_attempt : # Если это не админ и не удалось распознать как монету
+    if not is_admin and not was_coin_addition_attempt : 
         await message.reply(f"Не вдалося розпізнати '{text}' як тікер монети. Спробуйте ще раз або використайте /start для допомоги.")
-
 
 # --- ЗАПУСК БОТА ---
 async def main(): 

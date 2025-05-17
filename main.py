@@ -430,7 +430,7 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
 
 async def price_update_scheduler():
     await asyncio.sleep(10) 
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 3 хвилини).")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 5 хвилин).") # ИЗМЕНЕНО
     
     while True:
         now_utc = datetime.now(timezone.utc) 
@@ -486,7 +486,7 @@ async def price_update_scheduler():
                         pass
                     print(f"[{current_iso_time}] Помилка у фоновому завданні '{task_name}': {result}")
         
-        await asyncio.sleep(180) # ИНТЕРВАЛ 3 МИНУТЫ (180 секунд)
+        await asyncio.sleep(300) # ИНТЕРВАЛ 5 МИНУТ (300 секунд)
 
 # --- ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (АДМИН / ПОИСК ТОКЕНА) ---
 @dp.message() 

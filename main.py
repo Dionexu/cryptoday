@@ -4,12 +4,10 @@ import aiohttp
 import asyncio
 from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove # ReplyKeyboardRemove может не понадобиться
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.utils.markdown import hcode
-# FSM больше не нужен, убираем импорты:
-# from aiogram.fsm.context import FSMContext
-# from aiogram.fsm.state import State, StatesGroup
+# FSM больше не используется, соответствующие импорты удалены
 
 # --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN", "ВАШ_БОТ_ТОКЕН_ТУТ") 
@@ -20,7 +18,7 @@ if BOT_TOKEN == "ВАШ_БОТ_ТОКЕН_ТУТ":
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-DATA_FILE = "user_crypto_preferences_simplified.json" # Новое имя файла для чистоты
+DATA_FILE = "user_crypto_preferences_final.json" # Новое имя файла
 
 POPULAR_TOKENS_MAP = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana', 
@@ -31,11 +29,8 @@ POPULAR_TOKENS_ORDER = ['BTC', 'ETH', 'SOL', 'TON', 'DOGE', 'LINK', 'ADA', 'DOT'
 
 ADMIN_IDS = [696165311, 7923967086] 
 
-# FSM States класс удален
-
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ ---
 def load_data():
-    # ... (код без изменений) ...
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r", encoding='utf-8') as f:
@@ -52,13 +47,11 @@ def load_data():
     return {}
 
 def save_data(data):
-    # ... (код без изменений) ...
     try:
         with open(DATA_FILE, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
     except Exception as e:
         print(f"Не вдалося зберегти дані: {e}")
-
 
 def get_default_user_config():
     return {
@@ -66,12 +59,10 @@ def get_default_user_config():
         "tokens_display": [],       
         "frequency": None,          
         "notification_times_utc": []
-        # price_alert_config и last_hourly_notification_hour_utc УДАЛЕНЫ
     }
 
-# --- ФУНКЦИИ ДЛЯ API COINGECKO (с улучшенным логированием и пакетным запросом) ---
-async def fetch_price(symbol_id: str) -> str | float: # Эта функция может понадобиться, если вы захотите добавить поиск по одной монете в будущем
-    # ... (код этой функции без изменений, как в полной версии с алертами) ...
+# --- ФУНКЦИИ ДЛЯ API COINGECKO ---
+async def fetch_price(symbol_id: str) -> str | float: 
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol_id}&vs_currencies=usd"
     log_prefix = f"[{datetime.now(timezone.utc).isoformat()}] FetchPrice ({symbol_id}):"
     try:
@@ -102,9 +93,7 @@ async def fetch_price(symbol_id: str) -> str | float: # Эта функция м
         return "Error"
     return "N/A"
 
-
 async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
-    # ... (код этой функции без изменений, как в полной версии с алертами) ...
     if not symbol_ids:
         return {}
     
@@ -127,7 +116,6 @@ async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
                             results[symbol_id] = float(price)
                         else:
                             results[symbol_id] = "NoPriceData"
-                            # print(f"{log_prefix} 'usd' price not found for {symbol_id} in batch response: {data}") # Можно закомментировать для уменьшения логов
                     return results
                 else:
                     print(f"{log_prefix} API Error. Status: {resp.status}, Response: {response_text}")
@@ -144,9 +132,7 @@ async def fetch_prices_batch(symbol_ids: list[str]) -> dict:
         for symbol_id in symbol_ids: results[symbol_id] = "Error"
     return results
 
-
 async def search_token(query: str):
-    # ... (код этой функции без изменений) ...
     url = f"https://api.coingecko.com/api/v3/search?query={query}"
     log_prefix = f"[{datetime.now(timezone.utc).isoformat()}] SearchToken ({query}):"
     try:
@@ -169,7 +155,6 @@ async def search_token(query: str):
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def get_frequency_description_text(freq_code: str | None, notification_times_utc: list | None = None) -> str:
-    # ... (код этой функции без изменений) ...
     if not freq_code:
         return "не встановлена (сповіщення вимкнені)"
     if freq_code == "hourly":
@@ -194,7 +179,6 @@ async def start_cmd(message: types.Message):
         data[user_id] = get_default_user_config()
         save_data(data)
 
-    # ... (код для создания клавиатуры kb такой же) ...
     kb_buttons = []
     for i in range(0, len(POPULAR_TOKENS_ORDER), 2):
         row = []
@@ -226,7 +210,6 @@ async def start_cmd(message: types.Message):
 
 @dp.message(Command("mycryptoconfig"))
 async def my_config_cmd(message: types.Message):
-    # ... (код без изменений) ...
     user_id = str(message.chat.id)
     data = load_data()
     user_config = data.get(user_id)
@@ -254,7 +237,6 @@ async def my_config_cmd(message: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith("add_"))
 async def add_token_callback(callback_query: types.CallbackQuery):
-    # ... (код без изменений) ...
     user_id = str(callback_query.from_user.id)
     try:
         _, coin_id, display_ticker = callback_query.data.split("_", 2)
@@ -273,7 +255,7 @@ async def add_token_callback(callback_query: types.CallbackQuery):
         await callback_query.answer(f"{display_ticker} вже обрано", show_alert=False)
         return
 
-    if len(tokens_id_list) >= 5: # Оставляем лимит в 5 монет
+    if len(tokens_id_list) >= 5:
         await callback_query.answer("Вже обрано 5 монет. Максимум.", show_alert=True)
         return
 
@@ -295,7 +277,6 @@ async def add_token_callback(callback_query: types.CallbackQuery):
 
 @dp.message(Command("setfrequency"))
 async def set_frequency_cmd(message: types.Message):
-    # ... (код без изменений) ...
     user_id = str(message.chat.id)
     data = load_data()
     user_config = data.get(user_id)
@@ -316,7 +297,6 @@ async def set_frequency_cmd(message: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith("setfreq_"))
 async def process_frequency_callback(callback_query: types.CallbackQuery):
-    # ... (код почти без изменений, убираем last_hourly_notification_hour_utc) ...
     user_id = str(callback_query.from_user.id)
     action_parts = callback_query.data.split("_") 
     
@@ -344,7 +324,6 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     
     user_config["frequency"] = new_frequency
     user_config["notification_times_utc"] = new_times_utc
-    # user_config["last_hourly_notification_hour_utc"] = -1 # Это поле удалено
     
     data[user_id] = user_config
     save_data(data)
@@ -356,20 +335,18 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     else:
       await callback_query.answer("Сповіщення вимкнено.", show_alert=False)
 
-# Команды и FSM для Price Alert удалены (/setpricealert, /mypricealert, /removepricealert, PriceAlertStates, cancelalert)
-
 @dp.message(Command("resetcrypto")) 
 async def reset_crypto_all_cmd(message: types.Message):
     user_id = str(message.from_user.id)
     data = load_data()
     if user_id in data:
-        data[user_id] = get_default_user_config() # Сбрасывает на дефолт без алертов
+        data[user_id] = get_default_user_config()
         save_data(data)
         await message.answer("♻️ Всі ваші налаштування для криптовалют скинуто. /start щоб почати знову.")
     else:
         await message.answer("У вас ще немає налаштувань для скидання.")
 
-@dp.callback_query(lambda c: c.data == "reset_all_crypto") # Этот callback был на кнопках под ценами
+@dp.callback_query(lambda c: c.data == "reset_all_crypto")
 async def reset_crypto_all_callback(callback_query: types.CallbackQuery):
     user_id = str(callback_query.from_user.id)
     data = load_data()
@@ -391,19 +368,14 @@ async def stop_crypto_notifications_cmd(message: types.Message):
     if user_config and user_config.get("frequency") is not None:
         user_config["frequency"] = None
         user_config["notification_times_utc"] = [] 
-        # user_config["last_hourly_notification_hour_utc"] = -1 # Поле удалено
         data[user_id] = user_config
         save_data(data)
         await message.answer("❌ Сповіщення про криптовалюти зупинені.")
     else:
         await message.answer("Сповіщення вже вимкнені або не були налаштовані.")
 
-# --- ПЛАНИРОВЩИК (УПРОЩЕННЫЙ) ---
-# Функция check_and_process_price_alerts удалена
-
+# --- ПЛАНИРОВЩИК ---
 async def send_user_price_update(user_id_int: int, user_config: dict, frequency: str):
-    # ... (код этой функции с использованием fetch_prices_batch, без изменений логики отображения ошибок) ...
-    # Убедимся, что она не пытается использовать удаленные поля типа last_hourly_...
     tokens_id_list = user_config.get("tokens_id", [])
     if not tokens_id_list:
         return
@@ -430,8 +402,7 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             elif price_result == "N/A": error_display_text = "недоступно"
             prices_info.append(f"{token_display_name}: {error_display_text}")
     
-    if not prices_info: # Если список токенов был, но цены не получены ни на один
-        # Можно отправить сообщение об ошибке или просто ничего не отправлять
+    if not prices_info:
         print(f"[{datetime.now(timezone.utc).isoformat()}] Немає даних про ціни для відправки користувачу {user_id_int}")
         return
 
@@ -440,10 +411,8 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
     message_body = "\n".join(prices_info)
     final_message = f"{header}\n{message_body}"
     
-    # Кнопки под сообщением с ценами
     kb_after_price = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="♻️ Скинути налаштування", callback_data="reset_all_crypto")],
-        # Кнопка "Зупинити ці сповіщення" теперь просто отключает частоту
         [InlineKeyboardButton(text="❌ Зупинити ці сповіщення", callback_data="setfreq_off")] 
     ])
     try:
@@ -461,7 +430,7 @@ async def send_user_price_update(user_id_int: int, user_config: dict, frequency:
             print(f"Не вдалося надіслати повідомлення користувачу {user_id_int}: {e}")
 
 async def price_update_scheduler():
-    await asyncio.sleep(10) # Даем боту время запуститься
+    await asyncio.sleep(10) 
     print(f"[{datetime.now(timezone.utc).isoformat()}] Планувальник регулярних сповіщень запущено (інтервал 1 хвилина).")
     
     while True:
@@ -486,10 +455,10 @@ async def price_update_scheduler():
 
             if frequency and tokens_id_list:
                 if frequency == "hourly":
-                    if now_utc.minute == 0: # Точно в начале часа
+                    if now_utc.minute == 0: 
                         should_send_regular = True
                 elif frequency == "2_hours":
-                    if current_hour_utc % 2 == 0 and now_utc.minute == 0: # Точно в начале четного часа
+                    if current_hour_utc % 2 == 0 and now_utc.minute == 0: 
                         should_send_regular = True
                 elif frequency == "daily_1":
                     times_utc = user_config.get("notification_times_utc", [])
@@ -519,20 +488,34 @@ async def price_update_scheduler():
                     print(f"[{current_iso_time}] Помилка у фоновому завданні '{task_name}': {result}")
         
         await asyncio.sleep(60) # ИНТЕРВАЛ 1 МИНУТА
+
 # --- ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (АДМИН / ПОИСК ТОКЕНА) ---
 @dp.message() 
-async def handle_text_input(message: types.Message): # Убрали FSMContext, т.к. FSM удален
+async def handle_text_input(message: types.Message):
     user_id_str = str(message.chat.id)
     text = message.text.strip()
     
-    # 1. Логика администратора
-    if message.from_user.id in ADMIN_IDS:
-        if not text.startswith("/"): 
-            all_users_data = load_data()
+    if not text or text.startswith("/"):
+        return 
+
+    is_admin = message.from_user.id in ADMIN_IDS
+    all_users_data = load_data()
+    user_config = all_users_data.get(user_id_str, get_default_user_config())
+
+    coin_id_search, coin_name_search, coin_symbol_api_search = await search_token(text.lower())
+    was_coin_addition_attempt = bool(coin_id_search) 
+
+    if is_admin:
+        is_long_message_for_broadcast = len(text.split()) > 3 or len(text) > 20 
+        user_tokens_id_list_for_admin = user_config.get("tokens_id", [])
+
+        if (not was_coin_addition_attempt or 
+            len(user_tokens_id_list_for_admin) >= 5 or 
+            is_long_message_for_broadcast):
+            
+            print(f"Адміністратор {message.from_user.id} надсилає розсилку: '{text}'")
             sent_count = 0
             failed_count = 0
-            
-            # Админ пишет всем, у кого настроена любая частота (т.е. они активны)
             active_subscribers = [uid_s for uid_s, info in all_users_data.items() if info.get("frequency")]
 
             if not active_subscribers:
@@ -540,6 +523,8 @@ async def handle_text_input(message: types.Message): # Убрали FSMContext, 
                 return
 
             for uid_to_send_str in active_subscribers:
+                if uid_to_send_str == user_id_str: 
+                    continue
                 try:
                     await bot.send_message(uid_to_send_str, text)
                     sent_count += 1
@@ -553,11 +538,7 @@ async def handle_text_input(message: types.Message): # Убрали FSMContext, 
                                  f"Помилок: {failed_count}")
             return 
 
-    # 2. Логика поиска и добавления токена по текстовому вводу
-    if text and not text.startswith("/"):
-        all_users_data = load_data() 
-        user_config = all_users_data.get(user_id_str, get_default_user_config())
-
+    if was_coin_addition_attempt:
         tokens_id_list = user_config.get("tokens_id", [])
         tokens_display_list = user_config.get("tokens_display", [])
 
@@ -565,19 +546,13 @@ async def handle_text_input(message: types.Message): # Убрали FSMContext, 
             await message.answer("❗ Ти вже обрав 5 монет. Максимум.\nЩоб змінити, використай /resetcrypto і додай нові.")
             return
 
-        coin_id, coin_name, coin_symbol_api = await search_token(text.lower())
+        display_name_to_add = coin_symbol_api_search.upper() if coin_symbol_api_search else coin_name_search
 
-        if not coin_id:
-            await message.answer(f"❌ Монету '{text}' не знайдено. Спробуй інший запит або тікер.")
-            return
-        
-        display_name_to_add = coin_symbol_api.upper() if coin_symbol_api else coin_name
-
-        if coin_id in tokens_id_list:
-            await message.answer(f"ℹ️ Монета {display_name_to_add} (ID: {hcode(coin_id)}) вже обрана.", parse_mode="HTML")
+        if coin_id_search in tokens_id_list:
+            await message.answer(f"ℹ️ Монета {display_name_to_add} (ID: {hcode(coin_id_search)}) вже обрана.", parse_mode="HTML")
             return
 
-        tokens_id_list.append(coin_id)
+        tokens_id_list.append(coin_id_search)
         tokens_display_list.append(display_name_to_add)
         
         user_config["tokens_id"] = tokens_id_list
@@ -585,30 +560,24 @@ async def handle_text_input(message: types.Message): # Убрали FSMContext, 
         all_users_data[user_id_str] = user_config
         save_data(all_users_data)
 
-        await message.answer(f"✅ Додано: {display_name_to_add} (ID: {hcode(coin_id)})", parse_mode="HTML")
+        await message.answer(f"✅ Додано: {display_name_to_add} (ID: {hcode(coin_id_search)})", parse_mode="HTML")
         
         if len(tokens_id_list) >= 5:
             await message.answer("Ви обрали 5 монет. Тепер налаштуйте частоту сповіщень: /setfrequency")
         elif len(tokens_id_list) > 0:
             await message.answer("Щоб налаштувати частоту сповіщень, використайте /setfrequency")
-        return 
+        return
+    
+    if not is_admin and not was_coin_addition_attempt : # Если это не админ и не удалось распознать как монету
+        await message.reply(f"Не вдалося розпізнати '{text}' як тікер монети. Спробуйте ще раз або використайте /start для допомоги.")
+
 
 # --- ЗАПУСК БОТА ---
 async def main(): 
-    # Регистрация хендлеров
     dp.message.register(start_cmd, Command(commands=["start"]))
     dp.message.register(my_config_cmd, Command(commands=["mycryptoconfig"]))
     dp.message.register(set_frequency_cmd, Command(commands=["setfrequency"]))
     
-    # FSM хендлеры УДАЛЕНЫ
-    # dp.message.register(cmd_set_price_alert_start, Command(commands=["setpricealert"]))
-    # ... и другие FSM хендлеры ...
-    # dp.message.register(cancel_alert_setup, Command(commands=["cancelalert"]), PriceAlertStates.any_state)
-
-    # Команды для алертов УДАЛЕНЫ
-    # dp.message.register(cmd_my_price_alert, Command(commands=["mypricealert"]))
-    # dp.message.register(cmd_remove_price_alert, Command(commands=["removepricealert"]))
-
     dp.message.register(reset_crypto_all_cmd, Command(commands=["resetcrypto"]))
     dp.message.register(stop_crypto_notifications_cmd, Command(commands=["stopcryptonotifications"]))
     

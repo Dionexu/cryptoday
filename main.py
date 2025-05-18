@@ -2,8 +2,8 @@ import os
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiogram.types import Message
 from aiohttp import web
+from aiogram.types import Message
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -29,17 +29,28 @@ async def on_shutdown(app: web.Application):
     await bot.delete_webhook()
     print("🧹 Webhook видалено. Бот завершив роботу.")
 
-def create_app():
+async def main():
     app = web.Application()
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
-    # Реєстрація хендлера для обробки Telegram запитів
-    webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-    webhook_handler.register(app, path=WEBHOOK_PATH)
-
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     setup_application(app, dp)
-    return app
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+
+    print("✅ Бот запущено. Очікуємо запити Telegram...")
+
+    # Тримай цикл живим
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    web.run_app(create_app(), port=10000)
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("🛑 Зупинка вручну")

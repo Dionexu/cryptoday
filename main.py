@@ -1,3 +1,15 @@
+import socket
+import sys
+
+def prevent_multiple_instances():
+    """Гарантує, що бот не запуститься двічі одночасно (навіть якщо Render намагається)."""
+    lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        lock_id = "aiogram-telegram-bot-lock"
+        lock_socket.bind("\0" + lock_id)
+    except OSError:
+        print("❌ Інша інстанція вже запущена. Вихід.")
+        sys.exit(1)
 import os
 import asyncio
 from datetime import datetime, timezone

@@ -8,7 +8,7 @@ from aiogram.filters import CommandStart
 from datetime import datetime
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "abc123")
+WEBHOOK_SECRET = "abc123"  # <- ЯВНО вказуємо правильний секрет
 PORT = int(os.getenv("PORT", 10000))
 
 BASE_WEBHOOK_PATH = f"/webhook/{WEBHOOK_SECRET}"

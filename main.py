@@ -500,3 +500,5 @@ async def process_sleep_callback(callback_query: types.CallbackQuery):
     
     data = load_data()
     user_config = da
+if __name__ == "__main__":
+    web.run_app(create_app(), port=10000)

@@ -45,7 +45,6 @@ async def main():
 
     print("✅ Бот запущено. Очікуємо запити Telegram...")
 
-    # Тримай цикл живим
     while True:
         await asyncio.sleep(3600)
 

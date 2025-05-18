@@ -8,19 +8,19 @@ from datetime import datetime
 
 # === Налаштування ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "supersecrettoken")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "abc123")
+PORT = int(os.getenv("PORT", "10000"))
 BASE_WEBHOOK_PATH = f"/webhook/{WEBHOOK_SECRET}"
-PORT = int(os.getenv("PORT", "10000"))  # Render запускає на цьому порту
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# === Обробка оновлень від Telegram ===
+# === Обробка повідомлень
 @dp.message()
 async def echo_message(message):
-    await message.reply("👋 Привіт! Бот працює через webhook!")
+    await message.reply("✅ Привіт! Я працюю через webhook на Render!")
 
-# === HTTP-сервер (Aiohttp) ===
+# === Обробка вебхуку
 async def handle_webhook(request: web.Request):
     try:
         data = await request.json()
@@ -30,17 +30,18 @@ async def handle_webhook(request: web.Request):
         print(f"[ERROR] handle_webhook: {e}")
     return web.Response()
 
+# === Старт / стоп
 async def on_startup(app):
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_URL')}{BASE_WEBHOOK_PATH}"
+    webhook_url = f"https://bot-b14f.onrender.com{BASE_WEBHOOK_PATH}"  # ← твій URL
     await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
-    print(f"[{datetime.now().isoformat()}] 🚀 Webhook встановлено на {webhook_url}")
+    print(f"[{datetime.now().isoformat()}] 🚀 Webhook встановлено: {webhook_url}")
 
 async def on_shutdown(app):
     await bot.delete_webhook()
     await bot.session.close()
-    print(f"[{datetime.now().isoformat()}] 🧹 Webhook видалено, бот завершив роботу.")
+    print(f"[{datetime.now().isoformat()}] 🧹 Webhook видалено. Бот завершив роботу.")
 
-# === Створення і запуск сервера ===
+# === Aiohttp app
 def create_app():
     app = web.Application()
     app.router.add_post(BASE_WEBHOOK_PATH, handle_webhook)

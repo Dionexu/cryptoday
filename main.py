@@ -1,46 +1,52 @@
-import socket
-import sys
-
-def prevent_multiple_instances():
-    """Гарантує, що бот не запуститься двічі одночасно (навіть якщо Render намагається)."""
-    lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    try:
-        lock_id = "aiogram-telegram-bot-lock"
-        lock_socket.bind("\0" + lock_id)
-    except OSError:
-        print("❌ Інша інстанція вже запущена. Вихід.")
-        sys.exit(1)
 import os
 import asyncio
-from datetime import datetime, timezone
 from aiogram import Bot, Dispatcher
+from aiogram.types import Update
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import web
+from datetime import datetime
 
+# === Налаштування ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    print("❌ BOT_TOKEN не встановлено")
-    exit(1)
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "supersecrettoken")
+BASE_WEBHOOK_PATH = f"/webhook/{WEBHOOK_SECRET}"
+PORT = int(os.getenv("PORT", "10000"))  # Render запускає на цьому порту
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 
-async def main():
-    print(f"[{datetime.now(timezone.utc).isoformat()}] 🤖 Стартує бот...")
+# === Обробка оновлень від Telegram ===
+@dp.message()
+async def echo_message(message):
+    await message.reply("👋 Привіт! Бот працює через webhook!")
 
-    await bot.delete_webhook(drop_pending_updates=True)
-    print(f"[{datetime.now(timezone.utc).isoformat()}] 🧹 Вебхук видалено")
-
+# === HTTP-сервер (Aiohttp) ===
+async def handle_webhook(request: web.Request):
     try:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] ⏳ Старт polling...")
-        await dp.start_polling(bot, skip_updates=True)
+        data = await request.json()
+        update = Update.model_validate(data)
+        await dp.feed_update(bot, update)
     except Exception as e:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] ❌ Помилка polling: {e}")
-    finally:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] 🛑 polling завершився")
+        print(f"[ERROR] handle_webhook: {e}")
+    return web.Response()
+
+async def on_startup(app):
+    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_URL')}{BASE_WEBHOOK_PATH}"
+    await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
+    print(f"[{datetime.now().isoformat()}] 🚀 Webhook встановлено на {webhook_url}")
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    await bot.session.close()
+    print(f"[{datetime.now().isoformat()}] 🧹 Webhook видалено, бот завершив роботу.")
+
+# === Створення і запуск сервера ===
+def create_app():
+    app = web.Application()
+    app.router.add_post(BASE_WEBHOOK_PATH, handle_webhook)
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+    return app
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("🛑 Зупинено вручну")
-    except Exception as e:
-        print(f"❗️ Критична помилка: {e}")
+    web.run_app(create_app(), port=PORT)

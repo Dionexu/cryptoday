@@ -8,7 +8,8 @@ from datetime import datetime
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "abc123")
-PORT = int(os.getenv("PORT", "10000"))
+PORT = int(os.getenv("PORT", 10000))
+
 BASE_WEBHOOK_PATH = f"/webhook/{WEBHOOK_SECRET}"
 WEBHOOK_URL = f"https://bot-b14f.onrender.com{BASE_WEBHOOK_PATH}"
 
@@ -22,6 +23,7 @@ async def echo_handler(message):
 async def webhook_handler(request: web.Request):
     try:
         data = await request.json()
+        print(f"📩 Запит отримано: {data}")
         update = Update.model_validate(data)
         await dp.feed_update(bot, update)
     except Exception as e:
@@ -33,7 +35,7 @@ async def on_startup(app):
     print(f"[{datetime.now().isoformat()}] 🚀 Webhook встановлено: {WEBHOOK_URL}")
 
 async def on_shutdown(app):
-    print(f"[{datetime.now().isoformat()}] 🛑 Бот зупиняється...")  # Нічого не видаляємо тут
+    print(f"[{datetime.now().isoformat()}] 🛑 Бот зупиняється...")
     await bot.session.close()
 
 def create_app():

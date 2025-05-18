@@ -1,14 +1,9 @@
-
 import os
-import json
-import aiohttp
 import asyncio
-from datetime import datetime
-import pytz
-
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from aiogram.enums.parse_mode import ParseMode
+from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
@@ -18,156 +13,95 @@ WEBHOOK_PATH = f"/webhook/{WEBHOOK_SECRET}"
 BASE_WEBHOOK_URL = "https://bot-b14f.onrender.com"
 WEBHOOK_URL = BASE_WEBHOOK_URL + WEBHOOK_PATH
 
-DATA_FILE = "user_data.json"
-ADMIN_IDS = [696165311, 7923967086]
-TOKEN_MAP = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "SOL": "solana",
-    "ARB": "arbitrum"
-}
+ADMIN_IDS = [123456789]  # Замінити на справжній Telegram ID
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-def get_default_user():
-    return {
-        "tokens": [],
-        "frequency": None,
-        "timezone": None
-    }
-
-@dp.message(CommandStart())
-async def handle_start(message: Message):
-    user_id = str(message.chat.id)
-    data = load_data()
-    if user_id not in data:
-        data[user_id] = get_default_user()
-        save_data(data)
+# ======= СТАРТ =======
+@dp.message(Command("start"))
+async def start_handler(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Обрати монети", callback_data="select_tokens")],
-        [InlineKeyboardButton(text="Частота розсилки", callback_data="set_freq")],
-        [InlineKeyboardButton(text="Часовий пояс", callback_data="set_tz")]
+        [InlineKeyboardButton(text="📊 Обрати монети", callback_data="select_coins")]
     ])
-    await message.answer("👋 Привіт! Обери, з чого почнемо:", reply_markup=kb)
+    await message.answer("👋 Вітаю! Почнемо налаштування моніторингу:", reply_markup=kb)
 
-@dp.callback_query(lambda c: c.data == "select_tokens")
-async def select_tokens(callback: types.CallbackQuery):
+# ======= ВИБІР МОНЕТ =======
+@dp.callback_query(F.data == "select_coins")
+async def choose_coins(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=key, callback_data=f"add_{key}")]
-        for key in TOKEN_MAP.keys()
+        [InlineKeyboardButton(text="BTC", callback_data="coin_btc")],
+        [InlineKeyboardButton(text="ETH", callback_data="coin_eth")],
+        [InlineKeyboardButton(text="✅ Завершити", callback_data="coins_done")]
     ])
-    await callback.message.answer("Оберіть монети (до 5):", reply_markup=kb)
-    await callback.answer()
+    await callback.message.edit_text("🪙 Обери монети для моніторингу:", reply_markup=kb)
 
-@dp.callback_query(lambda c: c.data.startswith("add_"))
-async def add_token(callback: types.CallbackQuery):
-    token = callback.data.split("_")[1]
+# ======= ЗБЕРЕЖЕННЯ МОНЕТ =======
+user_config = {}
+
+@dp.callback_query(lambda c: c.data.startswith("coin_"))
+async def add_coin(callback: types.CallbackQuery):
     user_id = str(callback.from_user.id)
-    data = load_data()
-    user = data.get(user_id, get_default_user())
-    if token in user["tokens"]:
-        await callback.answer("Вже додано")
-    elif len(user["tokens"]) >= 5:
-        await callback.answer("Максимум 5 монет")
-    else:
-        user["tokens"].append(token)
-        data[user_id] = user
-        save_data(data)
-        await callback.message.answer(f"✅ Додано {token}")
-        await callback.answer()
+    coin = callback.data.replace("coin_", "")
+    if user_id not in user_config:
+        user_config[user_id] = {"coins": []}
+    if coin not in user_config[user_id]["coins"]:
+        user_config[user_id]["coins"].append(coin)
+    await callback.answer(f"{coin.upper()} додано ✅")
 
-@dp.callback_query(lambda c: c.data == "set_freq")
-async def set_freq(callback: types.CallbackQuery):
+@dp.callback_query(F.data == "coins_done")
+async def coins_done(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1 раз в день", callback_data="freq_daily")],
-        [InlineKeyboardButton(text="Щогодини", callback_data="freq_hourly")]
+        [InlineKeyboardButton(text="⏰ Частота оновлень", callback_data="set_frequency")]
     ])
-    await callback.message.answer("Оберіть частоту:", reply_markup=kb)
-    await callback.answer()
+    await callback.message.edit_text("✅ Монети збережено. Тепер обери частоту оновлень:", reply_markup=kb)
+
+# ======= ЧАСТОТА ОНОВЛЕНЬ =======
+@dp.callback_query(F.data == "set_frequency")
+async def choose_frequency(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Кожні 6 год", callback_data="freq_6h")],
+        [InlineKeyboardButton(text="Кожні 12 год", callback_data="freq_12h")],
+        [InlineKeyboardButton(text="Кожні 24 год", callback_data="freq_24h")]
+    ])
+    await callback.message.edit_text("📅 Обери частоту отримання даних:", reply_markup=kb)
 
 @dp.callback_query(lambda c: c.data.startswith("freq_"))
-async def save_freq(callback: types.CallbackQuery):
-    freq = callback.data.split("_")[1]
+async def save_frequency(callback: types.CallbackQuery):
     user_id = str(callback.from_user.id)
-    data = load_data()
-    user = data.get(user_id, get_default_user())
-    user["frequency"] = freq
-    data[user_id] = user
-    save_data(data)
-    await callback.message.answer(f"✅ Частоту встановлено: {freq}")
-    await callback.answer()
+    freq = callback.data.replace("freq_", "")
+    user_config[user_id]["frequency"] = freq
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🌍 Часовий пояс", callback_data="set_timezone")]
+    ])
+    await callback.message.edit_text(f"✅ Частоту встановлено: {freq} год.\nТепер обери часовий пояс:", reply_markup=kb)
 
-@dp.callback_query(lambda c: c.data == "set_tz")
-async def set_timezone(callback: types.CallbackQuery):
-    await callback.message.answer("Введіть назву вашого часового поясу (наприклад, Europe/Kyiv):")
-    await callback.answer()
+# ======= ЧАСОВИЙ ПОЯС =======
+@dp.callback_query(F.data == "set_timezone")
+async def choose_timezone(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="GMT+2", callback_data="tz_2")],
+        [InlineKeyboardButton(text="GMT+3", callback_data="tz_3")],
+        [InlineKeyboardButton(text="GMT+4", callback_data="tz_4")]
+    ])
+    await callback.message.edit_text("🕒 Обери часовий пояс:", reply_markup=kb)
 
-@dp.message()
-async def handle_text(message: Message):
-    user_id = str(message.chat.id)
-    text = message.text.strip()
-    data = load_data()
-    user = data.get(user_id, get_default_user())
+@dp.callback_query(lambda c: c.data.startswith("tz_"))
+async def save_timezone(callback: types.CallbackQuery):
+    user_id = str(callback.from_user.id)
+    tz = callback.data.replace("tz_", "")
+    user_config[user_id]["timezone"] = tz
+    await callback.message.edit_text(f"✅ Налаштування завершено! Моніторинг активовано.")
 
-    # Часовий пояс
-    if "/" in text:
+# ======= РОЗСИЛКА ДЛЯ АДМІНІВ =======
+async def notify_admins(text: str):
+    for admin_id in ADMIN_IDS:
         try:
-            pytz.timezone(text)
-            user["timezone"] = text
-            data[user_id] = user
-            save_data(data)
-            await message.answer(f"✅ Часовий пояс встановлено: {text}")
-            return
-        except:
-            await message.answer("❌ Невірний часовий пояс")
-            return
+            await bot.send_message(admin_id, f"📢 <b>Адмін-розсилка:</b>\n{text}")
+        except Exception as e:
+            print(f"Не вдалося надіслати адміну {admin_id}: {e}")
 
-    # Розсилка для адмінів
-    if message.from_user.id in ADMIN_IDS:
-        sent = 0
-        for uid in data:
-            if uid != user_id:
-                try:
-                    await bot.send_message(uid, f"📢 {text}")
-                    sent += 1
-                except:
-                    pass
-        await message.answer(f"Розіслано {sent} користувачам.")
-
-async def fetch_prices(tokens):
-    ids = ",".join(TOKEN_MAP[t] for t in tokens if t in TOKEN_MAP)
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            return await resp.json()
-
-async def price_notifier():
-    while True:
-        data = load_data()
-        for uid, cfg in data.items():
-            if cfg.get("tokens") and cfg.get("frequency") == "daily":
-                prices = await fetch_prices(cfg["tokens"])
-                msg = "📈 Поточні ціни:"
-" + "\n".join(
-                    [f"{t}: ${prices.get(TOKEN_MAP[t], {}).get('usd', 'N/A')}" for t in cfg["tokens"]]
-                )
-                try:
-                    await bot.send_message(int(uid), msg)
-                except:
-                    pass
-        await asyncio.sleep(3600 * 24)  # раз на день
-
+# ======= ЗАПУСК =======
 async def on_startup(app: web.Application):
     await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
     print(f"🚀 Webhook встановлено: {WEBHOOK_URL}")
@@ -184,16 +118,5 @@ def create_app():
     setup_application(app, dp)
     return app
 
-async def main():
-    app = create_app()
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000)
-    await site.start()
-    asyncio.create_task(price_notifier())
-    print("✅ Сервер запущено. Очікуємо webhook...")
-    while True:
-        await asyncio.sleep(3600)
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(create_app(), port=10000)

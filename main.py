@@ -2,8 +2,8 @@ import os
 import json
 import aiohttp
 import asyncio
-from datetime import datetime, timezone, timedelta, time # Added time
-import pytz # Added for timezone handling
+from datetime import datetime, timezone, timedelta, time 
+import pytz 
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
@@ -13,12 +13,12 @@ from aiogram.utils.markdown import hcode
 print(f"[{datetime.now(timezone.utc).isoformat()}] Скрипт main.py почав виконуватися.")
 
 # --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = os.getenv("BOT_TOKEN") # Отримуємо токен, може бути None
-PLACEHOLDER_TOKEN = "ВАШ_БОТ_ТОКЕН_ТУТ_ЗАМЕНИТЕ_ИЛИ_УСТАНОВИТЕ_ПЕРЕМЕННУЮ" # Стандартний плейсхолдер
+BOT_TOKEN = os.getenv("BOT_TOKEN") 
+PLACEHOLDER_TOKEN = "ВАШ_БОТ_ТОКЕН_ТУТ_ЗАМЕНИТЕ_ИЛИ_УСТАНОВИТЕ_ПЕРЕМЕННУЮ" 
 
 if not BOT_TOKEN or BOT_TOKEN == PLACEHOLDER_TOKEN:
     print(f"[{datetime.now(timezone.utc).isoformat()}] КРИТИЧНО: BOT_TOKEN не встановлено або є плейсхолдером. Перевірте змінні середовища на Render та переконайтеся, що токен дійсний.")
-    exit(1) # Завершуємо роботу, якщо токен невалідний
+    exit(1) 
 
 print(f"[{datetime.now(timezone.utc).isoformat()}] BOT_TOKEN отримано з середовища.")
 
@@ -34,6 +34,7 @@ dp = Dispatcher()
 print(f"[{datetime.now(timezone.utc).isoformat()}] Об'єкт Dispatcher успішно створено.")
 
 DATA_FILE = "user_crypto_stable_final.json" 
+PROMPT_SET_TIMEZONE_CALLBACK = "action_prompt_set_tz" # Callback data for new button
 
 POPULAR_TOKENS_MAP = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'SOL': 'solana', 
@@ -41,7 +42,7 @@ POPULAR_TOKENS_MAP = {
     'ADA': 'cardano', 'DOT': 'polkadot', 'MATIC': 'matic-network', 'ARB': 'arbitrum'
 }
 POPULAR_TOKENS_ORDER = ['BTC', 'ETH', 'SOL', 'TON', 'DOGE', 'LINK', 'ADA', 'DOT', 'MATIC', 'ARB']
-ADMIN_IDS = [696165311, 7923967086] # Example IDs
+ADMIN_IDS = [696165311, 7923967086] 
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ ---
 def load_data():
@@ -72,11 +73,11 @@ def get_default_user_config():
         "tokens_id": [],            
         "tokens_display": [],       
         "frequency": None,          
-        "notification_times_utc": [], # Stores HH:MM strings in UTC
-        "timezone": None,             # User's timezone string e.g., "Europe/Kyiv"
+        "notification_times_utc": [], 
+        "timezone": None,             
         "sleep_enabled": False,
-        "sleep_start_local": None,    # Local HH:MM string e.g., "22:00"
-        "sleep_end_local": None       # Local HH:MM string e.g., "07:00"
+        "sleep_start_local": None,    
+        "sleep_end_local": None       
     }
 
 # --- ФУНКЦИИ ДЛЯ API COINGECKO ---
@@ -200,7 +201,6 @@ def get_frequency_description_text(user_config: dict) -> str:
     return desc
 
 # --- ОБРАБОТЧИКИ КОМАНД И CALLBACK ---
-# ... (остальные обработчики команд и callback без изменений) ...
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
     user_id = str(message.chat.id)
@@ -231,8 +231,8 @@ async def start_cmd(message: types.Message):
     await message.answer(
         "🔍 <b>Або напиши скорочення (тікер) монети</b> (наприклад: `arb` або `Bitcoin`), щоб знайти її через пошук.\n\n"
         "Після вибору монет, налаштуй частоту та час сповіщень командою /setfrequency.\n"
-        "Встанови свій часовий пояс: /settimezone\n"
-        "Налаштуй режим сну (щоб не отримувати сповіщення вночі): /setsleep\n\n"
+        "Встанови свій часовий пояс: /settimezone (або через меню налаштувань частоти/сну).\n"
+        "Налаштуй режим сну (щоб не отримувати сповіщення вночі): /setsleep (або через меню налаштувань частоти/сну).\n\n"
         "<b>Інші команди:</b>\n"
         "/mycryptoconfig - переглянути поточні налаштування\n"
         "/resetcrypto - скинути всі налаштування\n"
@@ -273,9 +273,9 @@ async def my_config_cmd(message: types.Message):
         f"<b>Ваш часовий пояс:</b> {timezone_str}\n"
         f"<b>Режим сну:</b> {sleep_mode_desc}\n\n"
         "Щоб змінити монети, просто додайте нові або використайте /resetcrypto.\n"
-        "Щоб змінити частоту, використайте /setfrequency (потім /setnotifytime, якщо потрібно).\n"
-        "Щоб змінити часовий пояс: /settimezone\n"
-        "Щоб налаштувати режим сну: /setsleep (потім /setsleeptime, якщо потрібно).",
+        "Щоб змінити частоту, використайте /setfrequency.\n"
+        "Щоб змінити часовий пояс: /settimezone (або через відповідні меню).\n"
+        "Щоб налаштувати режим сну: /setsleep (або через відповідні меню).",
         parse_mode="HTML"
     )
 
@@ -320,13 +320,37 @@ async def add_token_callback(callback_query: types.CallbackQuery):
 
 @dp.message(Command("settimezone"))
 async def set_timezone_cmd(message: types.Message):
+    # Personalized message for Odesa, Ukraine (EEST timezone, likely Europe/Kyiv)
+    # Assuming user's location is known and they've consented to personalization.
+    # For a general bot, this personalization should be conditional or removed.
     await message.answer(
         "Будь ласка, надішліть ваш часовий пояс.\n"
         "Наприклад: `Europe/Kyiv`, `America/New_York`, `Asia/Tokyo`.\n"
         "Ви можете знайти свій часовий пояс у списку (наприклад, на Wikipedia за запитом 'list of tz database time zones').\n"
-        "Популярні варіанти: Europe/London, Europe/Berlin, Europe/Warsaw, America/Toronto, Asia/Dubai, Australia/Sydney.",
+        "Оскільки ви в Одесі, ваш часовий пояс, ймовірно, `Europe/Kyiv`.",
         parse_mode="HTML"
     )
+
+@dp.callback_query(lambda c: c.data == PROMPT_SET_TIMEZONE_CALLBACK)
+async def prompt_set_timezone_handler(callback_query: types.CallbackQuery):
+    try:
+        # Try to edit the message from which the button was pressed to remove the keyboard
+        await callback_query.message.edit_text(
+            text=callback_query.message.text + "\n\n⬇️ Тепер надішліть ваш часовий пояс.", # Update text
+            reply_markup=None # Remove keyboard
+        )
+    except Exception as e:
+        print(f"Error editing message reply markup: {e}") 
+        # If editing fails, just send a new message with the prompt
+        await callback_query.message.answer(
+            "Будь ласка, надішліть ваш часовий пояс.\n"
+            "Наприклад: `Europe/Kyiv`, `America/New_York`, `Asia/Tokyo`.\n"
+            "Ви можете знайти свій часовий пояс у списку (наприклад, на Wikipedia за запитом 'list of tz database time zones').\n"
+            "Оскільки ви в Одесі, ваш часовий пояс, ймовірно, `Europe/Kyiv`.",
+            parse_mode="HTML"
+        )
+    await callback_query.answer("Тепер, будь ласка, надішліть ваш часовий пояс.")
+
 
 @dp.message(Command("setfrequency"))
 async def set_frequency_cmd(message: types.Message):
@@ -355,13 +379,16 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     
     data = load_data()
     user_config = data.get(user_id, get_default_user_config())
-    
     current_tz = user_config.get("timezone")
-    if not current_tz and (action == "setfreq_config_daily_1" or action == "setfreq_config_daily_2"):
-        await callback_query.message.answer(
-            "❗️ Будь ласка, спочатку встановіть ваш часовий пояс командою /settimezone.\n"
-            "Потім ви зможете налаштувати час для щоденних сповіщень.",
-            parse_mode="HTML"
+
+    # Check for timezone if daily frequency is being configured
+    if (action == "setfreq_config_daily_1" or action == "setfreq_config_daily_2") and not current_tz:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🕒 Встановити часовий пояс зараз", callback_data=PROMPT_SET_TIMEZONE_CALLBACK)]
+        ])
+        await callback_query.message.answer( # Send as a new message, don't edit the frequency choice message
+            "❗️ Для налаштування щоденних сповіщень потрібно спочатку встановити ваш часовий пояс.",
+            reply_markup=kb
         )
         await callback_query.answer()
         return
@@ -383,7 +410,7 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
         new_times_utc = [] 
         msg_text = "Частоту встановлено: Кожні 2 години."
     elif action == "setfreq_config_daily_1":
-        await callback_query.message.answer(
+        await callback_query.message.answer( # Send as a new message
             f"Для налаштування часу для '1 раз на день', використайте команду:\n"
             f"`/setnotifytime <ЧАС>`\n"
             f"Наприклад: `/setnotifytime 09:00`\n"
@@ -391,9 +418,12 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
             parse_mode="HTML"
         )
         await callback_query.answer("Вкажіть час командою")
+        # Edit the original message with frequency choices to remove keyboard
+        try: await callback_query.message.edit_reply_markup(reply_markup=None)
+        except: pass # Ignore if editing fails
         return 
     elif action == "setfreq_config_daily_2":
-        await callback_query.message.answer(
+        await callback_query.message.answer( # Send as a new message
             f"Для налаштування часу для '2 рази на день', використайте команду:\n"
             f"`/setnotifytime <ЧАС1> <ЧАС2>`\n"
             f"Наприклад: `/setnotifytime 09:00 21:00`\n"
@@ -401,6 +431,8 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
             parse_mode="HTML"
         )
         await callback_query.answer("Вкажіть час командою")
+        try: await callback_query.message.edit_reply_markup(reply_markup=None)
+        except: pass
         return 
     else:
         await callback_query.answer("Невідома дія.", show_alert=True)
@@ -412,8 +444,14 @@ async def process_frequency_callback(callback_query: types.CallbackQuery):
     save_data(data)
     
     final_freq_desc = get_frequency_description_text(user_config)
-    await callback_query.message.edit_text(f"✅ Частоту сповіщень оновлено: <b>{final_freq_desc}</b>", parse_mode="HTML")
+    # Edit the message that showed frequency choices
+    try:
+        await callback_query.message.edit_text(f"✅ Частоту сповіщень оновлено: <b>{final_freq_desc}</b>", parse_mode="HTML")
+    except Exception as e: # If editing fails (e.g. message too old or no change), send a new one
+        print(f"Error editing frequency message: {e}")
+        await bot.send_message(user_id, f"✅ Частоту сповіщень оновлено: <b>{final_freq_desc}</b>", parse_mode="HTML")
     await callback_query.answer(msg_text if msg_text else "Налаштування оновлено")
+
 
 @dp.message(Command("setnotifytime"))
 async def set_notify_time_cmd(message: types.Message):
@@ -429,7 +467,10 @@ async def set_notify_time_cmd(message: types.Message):
 
     user_tz_str = user_config.get("timezone")
     if not user_tz_str:
-        await message.answer("Будь ласка, спочатку встановіть ваш часовий пояс: /settimezone")
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🕒 Встановити часовий пояс зараз", callback_data=PROMPT_SET_TIMEZONE_CALLBACK)]
+        ])
+        await message.answer("Будь ласка, спочатку встановіть ваш часовий пояс:", reply_markup=kb)
         return
 
     if not args or len(args) > 2:
@@ -488,19 +529,21 @@ async def process_sleep_callback(callback_query: types.CallbackQuery):
     
     data = load_data()
     user_config = data.get(user_id, get_default_user_config())
+    current_tz = user_config.get("timezone")
 
     if action == "sleep_config":
-        current_tz = user_config.get("timezone")
         if not current_tz:
-            await callback_query.message.answer(
-                "❗️ Будь ласка, спочатку встановіть ваш часовий пояс командою /settimezone.\n"
-                "Потім ви зможете налаштувати режим сну.",
-                parse_mode="HTML"
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🕒 Встановити часовий пояс зараз", callback_data=PROMPT_SET_TIMEZONE_CALLBACK)]
+            ])
+            await callback_query.message.answer( # Send as a new message
+                "❗️ Для налаштування режиму сну потрібно спочатку встановити ваш часовий пояс.",
+                reply_markup=kb
             )
             await callback_query.answer()
             return
             
-        await callback_query.message.answer(
+        await callback_query.message.answer( # Send as a new message
             f"Щоб налаштувати години сну, використайте команду:\n"
             f"`/setsleeptime <СТАРТ_ГГ:ХХ> <КІНЕЦЬ_ГГ:ХХ>`\n"
             f"Наприклад: `/setsleeptime 22:00 07:00`\n"
@@ -508,6 +551,8 @@ async def process_sleep_callback(callback_query: types.CallbackQuery):
             parse_mode="HTML"
         )
         await callback_query.answer("Вкажіть години сну командою")
+        try: await callback_query.message.edit_reply_markup(reply_markup=None) # Edit original sleep choice message
+        except: pass
     elif action == "sleep_disable":
         user_config["sleep_enabled"] = False
         data[user_id] = user_config
@@ -542,7 +587,10 @@ async def set_sleep_time_cmd(message: types.Message):
         user_config = get_default_user_config()
     
     if not user_config.get("timezone"):
-        await message.answer("Будь ласка, спочатку встановіть ваш часовий пояс: /settimezone")
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🕒 Встановити часовий пояс зараз", callback_data=PROMPT_SET_TIMEZONE_CALLBACK)]
+        ])
+        await message.answer("Будь ласка, спочатку встановіть ваш часовий пояс:", reply_markup=kb)
         return
 
     user_config["sleep_start_local"] = start_time_str
@@ -661,8 +709,8 @@ async def price_update_scheduler():
     cycle_count = 0 
     while True:
         cycle_count += 1
-        current_iso_time_loop_start = datetime.now(timezone.utc).isoformat()
-        # print(f"[{current_iso_time_loop_start}] price_update_scheduler: Початок циклу #{cycle_count}") # Може бути занадто багато логів
+        # current_iso_time_loop_start = datetime.now(timezone.utc).isoformat() # Reduced logging
+        # print(f"[{current_iso_time_loop_start}] price_update_scheduler: Початок циклу #{cycle_count}")
         
         now_utc = datetime.now(pytz.utc) 
         current_time_utc_str = now_utc.strftime("%H:%M")
@@ -747,7 +795,7 @@ async def price_update_scheduler():
                         pass 
                     print(f"[{datetime.now(timezone.utc).isoformat()}] price_update_scheduler: Помилка у фоновому завданні '{task_name}': {result}")
         
-        await asyncio.sleep(3600) # ИНТЕРВАЛ 60 МИНУТ (3600 секунд).
+        await asyncio.sleep(3600) 
 
 # --- ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ (АДМИН / ПОИСК ТОКЕНА / УСТАНОВКА ЧАСОВОГО ПОЯСА) ---
 @dp.message() 
@@ -758,24 +806,27 @@ async def handle_text_input(message: types.Message):
     if not text or text.startswith("/"): 
         return 
 
-    is_potential_timezone = "/" in text and len(text) > 5 
+    is_potential_timezone = "/" in text and len(text) > 3 and any(c.isalpha() for c in text) # Improved heuristic
     
     data = load_data() 
     user_config = data.get(user_id_str, get_default_user_config())
 
-    if is_potential_timezone:
+    if is_potential_timezone: # Try to process as timezone first
         try:
             pytz.timezone(text) 
             user_config["timezone"] = text
             data[user_id_str] = user_config
             save_data(data)
-            await message.answer(f"✅ Ваш часовий пояс встановлено на: {text}\n"
-                                 f"Тепер ви можете налаштувати час сповіщень у вашому локальному часі за допомогою /setfrequency та /setnotifytime.")
+            await message.answer(f"✅ Ваш часовий пояс успішно встановлено на: {text}\n"
+                                 f"Тепер ви можете налаштувати час сповіщень у вашому локальному часі.")
             return 
         except pytz.exceptions.UnknownTimeZoneError:
+            # Not a valid timezone, let it fall through to token search or other logic
+            # We won't send an error message here, as it might be a token ticker
             pass 
-        except Exception as e:
-            print(f"Error setting timezone for {user_id_str} with text '{text}': {e}")
+        except Exception as e: # Other errors during timezone processing
+            print(f"Error processing potential timezone '{text}' for user {user_id_str}: {e}")
+            # Fall through
 
     is_admin = message.from_user.id in ADMIN_IDS
     
@@ -791,7 +842,7 @@ async def handle_text_input(message: types.Message):
             is_broadcast = True
         elif len(user_tokens_id_list_for_admin) >= 5 and was_coin_addition_attempt: 
              is_broadcast = True 
-        elif is_long_message_for_broadcast and not was_coin_addition_attempt:
+        elif is_long_message_for_broadcast and not was_coin_addition_attempt: # Corrected condition
              is_broadcast = True
         
         if is_broadcast:
@@ -851,8 +902,10 @@ async def handle_text_input(message: types.Message):
             await message.answer("Щоб налаштувати частоту сповіщень, використайте /setfrequency")
         return
     
-    if not is_admin and not was_coin_addition_attempt and not is_potential_timezone : 
+    # If not admin, not processed as timezone, and not a recognized coin
+    if not is_admin and not (is_potential_timezone and user_config.get("timezone") == text) and not was_coin_addition_attempt:
         await message.reply(f"Не вдалося розпізнати '{text}' як тікер монети або часовий пояс. Спробуйте ще раз або використайте /start для допомоги.")
+
 
 # --- ЗАПУСК БОТА ---
 async def main(): 
@@ -871,6 +924,7 @@ async def main():
     
     dp.callback_query.register(add_token_callback, lambda c: c.data.startswith("add_"))
     dp.callback_query.register(process_frequency_callback, lambda c: c.data.startswith("setfreq_"))
+    dp.callback_query.register(prompt_set_timezone_handler, lambda c: c.data == PROMPT_SET_TIMEZONE_CALLBACK) # New handler
     dp.callback_query.register(process_sleep_callback, lambda c: c.data.startswith("sleep_"))
     dp.callback_query.register(reset_crypto_all_callback, lambda c: c.data == "reset_all_crypto")
     dp.callback_query.register(show_my_config_inline_callback, lambda c: c.data == "show_my_config_inline")
@@ -889,8 +943,7 @@ async def main():
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: КРИТИЧНА ПОМИЛКА В START_POLLING: {e}")
         print(f"[{datetime.now(timezone.utc).isoformat()}] Тип помилки: {type(e).__name__}")
         import traceback
-        traceback.print_exc() # Друкуємо повний traceback для діагностики
-        # raise # Можна повторно викликати помилку, щоб Render точно зафіксував її як збій
+        traceback.print_exc() 
     finally:
         print(f"[{datetime.now(timezone.utc).isoformat()}] main: Блок finally - зупинка бота.")
         if scheduler_task and not scheduler_task.done():

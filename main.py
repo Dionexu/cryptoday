@@ -158,7 +158,7 @@ async def price_notifier():
         for uid, cfg in data.items():
             if cfg.get("tokens") and cfg.get("frequency") == "daily":
                 prices = await fetch_prices(cfg["tokens"])
-                msg = "📈 Поточні ціни:
+                msg = "📈 Поточні ціни:"
 " + "\n".join(
                     [f"{t}: ${prices.get(TOKEN_MAP[t], {}).get('usd', 'N/A')}" for t in cfg["tokens"]]
                 )

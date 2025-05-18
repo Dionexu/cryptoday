@@ -4,8 +4,10 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.types import Update
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.filters import CommandStart
 from datetime import datetime
 
+# === Налаштування ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "abc123")
 PORT = int(os.getenv("PORT", 10000))
@@ -16,10 +18,17 @@ WEBHOOK_URL = f"https://bot-b14f.onrender.com{BASE_WEBHOOK_PATH}"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# === Обробка /start
+@dp.message(CommandStart())
+async def start_handler(message):
+    await message.answer("👋 Привіт! Я твій бот і вже працюю.")
+
+# === Обробка будь-якого тексту
 @dp.message()
 async def echo_handler(message):
-    await message.reply("✅ Бот працює!")
+    await message.reply("✉️ Ти написав: " + message.text)
 
+# === Обробка вебхука
 async def webhook_handler(request: web.Request):
     try:
         data = await request.json()
@@ -30,6 +39,7 @@ async def webhook_handler(request: web.Request):
         print(f"❗ Webhook error: {e}")
     return web.Response()
 
+# === Старт/стоп
 async def on_startup(app):
     await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
     print(f"[{datetime.now().isoformat()}] 🚀 Webhook встановлено: {WEBHOOK_URL}")
@@ -38,6 +48,7 @@ async def on_shutdown(app):
     print(f"[{datetime.now().isoformat()}] 🛑 Бот зупиняється...")
     await bot.session.close()
 
+# === Запуск сервера
 def create_app():
     app = web.Application()
     app.router.add_post(BASE_WEBHOOK_PATH, webhook_handler)

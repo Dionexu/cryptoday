@@ -1,63 +1,50 @@
 import os
-import json
-import aiohttp
 import asyncio
-from datetime import datetime, timezone, timedelta, time
-import pytz
+from datetime import datetime, timezone
+from aiogram import Bot, Dispatcher
+from aiohttp import web
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
-from aiogram.filters import Command
-from aiogram.utils.markdown import hcode
-
-print(f"[{datetime.now(timezone.utc).isoformat()}] Скрипт main.py почав виконуватися.")
-
-# --- КОНФІГУРАЦІЯ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PLACEHOLDER_TOKEN = "ВАШ_БОТ_ТОКЕН_ТУТ_ЗАМЕНИТЕ_ИЛИ_УСТАНОВИТЕ_ПЕРЕМЕННУЮ"
 
 if not BOT_TOKEN or BOT_TOKEN == PLACEHOLDER_TOKEN:
-    print(f"[{datetime.now(timezone.utc).isoformat()}] ❌ КРИТИЧНО: BOT_TOKEN не встановлено або є плейсхолдером.")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] ❌ BOT_TOKEN не встановлено або є плейсхолдером.")
     exit(1)
 
-# --- ІНІЦІАЛІЗАЦІЯ БОТА ТА ДИСПЕТЧЕРА ---
-try:
-    bot = Bot(token=BOT_TOKEN)
-    print(f"[{datetime.now(timezone.utc).isoformat()}] ✅ Об'єкт Bot створено.")
-except Exception as e:
-    print(f"[{datetime.now(timezone.utc).isoformat()}] ❌ ПОМИЛКА: Не вдалося створити Bot: {e}")
-    exit(1)
-
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-print(f"[{datetime.now(timezone.utc).isoformat()}] ✅ Об'єкт Dispatcher створено.")
 
-# --- ГОЛОВНА ФУНКЦІЯ ---
+# --- Health-check для Render ---
+async def handle_healthz(request):
+    return web.Response(text="OK", status=200)
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/healthz", handle_healthz)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+    print(f"[{datetime.now(timezone.utc).isoformat()}] 🌐 HTTP-сервер запущено на порту 10000 (Render health check)")
+
+# --- Telegram polling ---
+async def start_bot():
+    await bot.delete_webhook(drop_pending_updates=True)
+    print(f"[{datetime.now(timezone.utc).isoformat()}] 🤖 Вебхук видалено. Стартує polling...")
+    await dp.start_polling(bot, skip_updates=True)
+
+# --- Головна точка входу ---
 async def main():
-    print(f"[{datetime.now(timezone.utc).isoformat()}] ▶️ main: Початок функції main.")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] 🚀 Стартуємо main()")
+    await asyncio.gather(
+        start_web_server(),
+        start_bot()
+    )
 
-    # ВАЖЛИВО: Зняти вебхук — вирішує помилку "Conflict"
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        print(f"[{datetime.now(timezone.utc).isoformat()}] 🔧 Вебхук успішно видалено.")
-    except Exception as e:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] ⚠️ ПОПЕРЕДЖЕННЯ: Не вдалося видалити вебхук: {e}")
-
-    # Тут можна реєструвати хендлери, якщо потрібно
-    print(f"[{datetime.now(timezone.utc).isoformat()}] 🧩 main: ХЕНДЛЕРИ ЗАРЕЄСТРОВАНІ.")
-
-    # Запуск polling
-    print(f"[{datetime.now(timezone.utc).isoformat()}] 🚀 Запуск polling...")
-    try:
-        await dp.start_polling(bot, skip_updates=True)
-    except Exception as e:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] ❌ ПОМИЛКА в start_polling: {e}")
-        raise
-
-# --- ЗАПУСК ---
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print(f"[{datetime.now(timezone.utc).isoformat()}] 🛑 Зупинка вручну (Ctrl+C)")
     except Exception as e:
-        print(f"[{datetime.now(timezone.utc).isoformat()}] ❗️ Критична помилка під час запуску: {e}")
+        print(f"[{datetime.now(timezone.utc).isoformat()}] ❗️ Критична помилка: {e}")

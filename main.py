@@ -167,11 +167,11 @@ await callback.message.answer(
     f"🛌 Початок режиму сну: {start}\nОберіть час завершення:",
     reply_markup=keyboard
 )
-await callback.message.answer(
-    f"🛌 Початок режиму сну: {start}\nОберіть час завершення:",
-    reply_markup=keyboard
-)
+    await callback.message.answer(
+        f"🛌 Початок режиму сну: {start}\nОберіть час завершення:",
+        reply_markup=keyboard
     )
+
     await callback.answer()
 
 @router.callback_query(F.data.startswith("sleepstart_"))

@@ -163,7 +163,7 @@ async def choose_sleep_start(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t, callback_data=f"sleepend_{t}")] for t in times
     ])
-    await callback.message.answer(f"🛌 Початок режиму сну: {start}
+    await callback.message.answer(f"🛌 Початок режиму сну: {start} 
 Оберіть час завершення:", reply_markup=keyboard)
     await callback.answer()
 
@@ -175,6 +175,12 @@ async def choose_sleep_end(callback: types.CallbackQuery):
     user_settings[uid]["sleep"] = {"start": start, "end": end}
     user_settings[uid].pop("sleep_start", None)
     await callback.message.answer(f"🌙 Режим сну встановлено з {start} до {end} 🛌")
+
+    # Після всіх налаштувань — фінальне повідомлення
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Скинути всі налаштування", callback_data="reset_settings")]
+    ])
+    await callback.message.answer("✅ Налаштування збережено. Ви можете скинути їх у будь-який момент:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "sleep_off")

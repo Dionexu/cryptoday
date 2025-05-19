@@ -87,9 +87,8 @@ async def search_coin(message: types.Message):
                     return
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text=c['name'], callback_data=f"coin_{c['id']}") for c in matches[:3]],
-                    [InlineKeyboardButton(text="✅ Готово", callback_data="coin_done")]
-                ])
+                    [InlineKeyboardButton(text=c['name'], callback_data=f"coin_{c['id']}")] for c in matches[:5]
+                ] + [[InlineKeyboardButton(text="✅ Готово", callback_data="coin_done")]])
                 await message.answer("Оберіть монету зі списку:", reply_markup=keyboard)
         except Exception as e:
             await message.answer(f"❌ Помилка при пошуку: {e}")
@@ -97,7 +96,7 @@ async def search_coin(message: types.Message):
 @router.callback_query(F.data.startswith("coin_"))
 async def select_coin(callback: types.CallbackQuery):
     uid = callback.from_user.id
-    coin_id = callback.data[len("coin_"):]
+    coin_id = callback.data[len("coin_") :]
     if coin_id == "done":
         coins = user_settings.get(uid, {}).get("coins", [])
         await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
@@ -109,19 +108,44 @@ async def select_coin(callback: types.CallbackQuery):
 @router.callback_query(F.data == "setup_time")
 async def setup_time(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="07:00", callback_data="time_07:00"),
-         InlineKeyboardButton(text="09:00", callback_data="time_09:00"),
-         InlineKeyboardButton(text="12:00", callback_data="time_12:00")]
+        [InlineKeyboardButton(text="Раз в годину", callback_data="freq_1h")],
+        [InlineKeyboardButton(text="Раз в 2 години", callback_data="freq_2h")],
+        [InlineKeyboardButton(text="Раз в 12 годин", callback_data="freq_12h")],
+        [InlineKeyboardButton(text="Раз на день", callback_data="freq_24h")],
     ])
-    await callback.message.answer("Оберіть час надсилання:", reply_markup=keyboard)
+    await callback.message.answer("Оберіть частоту надсилання:", reply_markup=keyboard)
     await callback.answer()
 
-@router.callback_query(F.data.startswith("time_"))
-async def select_time(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("freq_"))
+async def select_frequency(callback: types.CallbackQuery):
+    freq = callback.data.split("_")[1]
+    uid = callback.from_user.id
+    user_settings[uid] = user_settings.get(uid, {})
+    user_settings[uid]["frequency"] = freq
+
+    if freq in ["12h", "24h"]:
+        times = [f"{str(h).zfill(2)}:00" for h in range(24)]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t, callback_data=f"settime_{t}")] for t in times
+        ])
+        await callback.message.answer("Оберіть час надсилання:", reply_markup=keyboard)
+    else:
+        await callback.message.answer(f"⏱ Частота встановлена: 1 раз в {freq[:-1]} годин")
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("settime_"))
+async def choose_send_time(callback: types.CallbackQuery):
     time = callback.data.split("_")[1]
-    user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
-    user_settings[callback.from_user.id]["time"] = time
-    await callback.message.answer(f"🕒 Час встановлено на {time} (UTC)")
+    uid = callback.from_user.id
+    freq = user_settings.get(uid, {}).get("frequency")
+    user_settings[uid]["time"] = time
+    if freq == "12h":
+        hour = int(time.split(":")[0])
+        evening = (hour + 12) % 24
+        user_settings[uid]["second_time"] = f"{str(evening).zfill(2)}:00"
+        await callback.message.answer(f"⏱ Час встановлено: {time} та {str(evening).zfill(2)}:00 (12 годин)" )
+    else:
+        await callback.message.answer(f"⏱ Час встановлено: {time} (раз на день)")
     await callback.answer()
 
 @router.callback_query(F.data == "setup_timezone")

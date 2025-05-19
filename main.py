@@ -167,9 +167,10 @@ await callback.message.answer(
     f"🛌 Початок режиму сну: {start}\nОберіть час завершення:",
     reply_markup=keyboard
 )
-
-Оберіть час завершення:",
-        reply_markup=keyboard
+await callback.message.answer(
+    f"🛌 Початок режиму сну: {start}\nОберіть час завершення:",
+    reply_markup=keyboard
+)
     )
     await callback.answer()
 

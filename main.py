@@ -134,7 +134,7 @@ async def select_frequency(callback: types.CallbackQuery):
             [InlineKeyboardButton(text=f"{h1} - {h2}", callback_data=f"sleep_{h1}_{h2}")]
             for h1 in hours for h2 in hours if h1 != h2
         ][::6])  # ограничим до нескольких опций, можно доработать
-        await callback.message.answer("🌙 Оберіть період "режиму сну", коли повідомлення не надсилатимуться:", reply_markup=keyboard)
+        await callback.message.answer("🌙 Оберіть період 'режиму сну', коли повідомлення не надсилатимуться:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("settime_"))

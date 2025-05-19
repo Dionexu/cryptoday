@@ -120,6 +120,13 @@ async def select_frequency(callback: types.CallbackQuery):
         await callback.message.answer("Оберіть час надсилання:", reply_markup=keyboard)
     else:
         await callback.message.answer(f"⏱ Частота встановлена: 1 раз в {freq[:-1]} годин")
+        # sleep mode for 1h and 2h
+        hours = [f"{str(h).zfill(2)}:00" for h in range(24)]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"{h1} - {h2}", callback_data=f"sleep_{h1}_{h2}")]
+            for h1 in hours for h2 in hours if h1 != h2
+        ][::6])  # ограничим до нескольких опций, можно доработать
+        await callback.message.answer("🌙 Оберіть період "режиму сну", коли повідомлення не надсилатимуться:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("settime_"))
@@ -143,6 +150,16 @@ async def choose_send_time(callback: types.CallbackQuery):
         await callback.message.answer(f"⏱ Час встановлено: {time} та {str(evening).zfill(2)}:00 (12 годин)" )
     else:
         await callback.message.answer(f"⏱ Час встановлено: {time} (раз на день)")
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("sleep_"))
+async def set_sleep_mode(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    parts = callback.data.split("_")
+    if len(parts) == 3:
+        start, end = parts[1], parts[2]
+        user_settings[uid]["sleep"] = {"start": start, "end": end}
+        await callback.message.answer(f"🌙 Режим сну встановлено з {start} до {end} 🛌")
     await callback.answer()
 
 @router.callback_query(F.data == "reset_settings")

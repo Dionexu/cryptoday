@@ -249,8 +249,7 @@ async def price_notifier():
                                 data = await resp.json()
                                 price = data.get(coin, {}).get("usd")
                                 if price:
-                                    text += f"{coin.capitalize()}: ${price}
-"
+                                    text += f"{coin.capitalize()}: ${price}"
                     await bot.send_message(uid, text.strip())
                 except Exception as e:
                     logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")

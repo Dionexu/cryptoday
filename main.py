@@ -60,7 +60,7 @@ async def setup_coins(callback: types.CallbackQuery):
 
 @router.message()
 async def search_coin(message: types.Message):
-    if "coins" not in user_settings.get(message.from_user.id, {}):
+    if not user_settings.get(message.from_user.id, {}).get("coin_stage"):
         return
 
     query = message.text.strip().lower()

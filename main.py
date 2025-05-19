@@ -231,20 +231,21 @@ async def price_notifier():
                         continue
 
             # Перевірка часу надсилання
-            should_send = False
-            if freq in ["1h", "2h"]:
-                now_minute = now.minute
-                interval = int(freq[:-1])
-                if now.minute == 0 and now.hour % interval == 0:
-                    should_send = True
-            elif freq == "12h" and local_hour in [time_str, second_time]:
-                should_send = True
-            elif freq == "24h" and local_hour == time_str:
-                should_send = True
-
-
-    except Exception as e:
-        logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
+                   if should_send:
+            try:
+                text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
+                async with aiohttp.ClientSession() as session:
+                    for coin in coins:
+                        url = "https://api.coingecko.com/api/v3/simple/price"
+                        params = {"ids": coin, "vs_currencies": "usd"}
+                        async with session.get(url, params=params) as resp:
+                            data = await resp.json()
+                            price = data.get(coin, {}).get("usd")
+                            if price:
+                                text += f"{coin.capitalize()}: ${price}\n"
+                await bot.send_message(uid, text.strip())
+            except Exception as e:
+                logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
 
                                 data = await resp.json()
                                 price = data.get(coin, {}).get("usd")

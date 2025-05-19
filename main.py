@@ -139,6 +139,14 @@ async def choose_send_time(callback: types.CallbackQuery):
     uid = callback.from_user.id
     freq = user_settings.get(uid, {}).get("frequency")
     user_settings[uid]["time"] = time
+
+    if "timezone" not in user_settings[uid]:
+        offset = datetime.now().astimezone().utcoffset()
+        if offset:
+            hours = int(offset.total_seconds() // 3600)
+            user_settings[uid]["timezone"] = f"{hours:+03d}:00"
+            await callback.message.answer(f"🌍 Таймзона автоматично встановлена на {user_settings[uid]['timezone']}")
+
     if freq == "12h":
         hour = int(time.split(":")[0])
         evening = (hour + 12) % 24

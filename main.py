@@ -85,16 +85,17 @@ async def select_coin(callback: types.CallbackQuery):
     coin_id = callback.data[len("coin_") :]
     if coin_id == "done":
         coins = user_settings.get(uid, {}).get("coins", [])
-        await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
-
-        # Показуємо наступний етап — вибір частоти
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Раз в годину", callback_data="freq_1h")],
-            [InlineKeyboardButton(text="Раз в 2 години", callback_data="freq_2h")],
-            [InlineKeyboardButton(text="Раз в 12 годин", callback_data="freq_12h")],
-            [InlineKeyboardButton(text="Раз на день", callback_data="freq_24h")],
-        ])
-        await callback.message.answer("Оберіть частоту надсилання:", reply_markup=keyboard)
+        if len(coins) < 5:
+            await callback.message.answer(f"⚠️ Потрібно вибрати 5 монет. Ви вибрали: {len(coins)}")
+        else:
+            await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Раз в годину", callback_data="freq_1h")],
+                [InlineKeyboardButton(text="Раз в 2 години", callback_data="freq_2h")],
+                [InlineKeyboardButton(text="Раз в 12 годин", callback_data="freq_12h")],
+                [InlineKeyboardButton(text="Раз на день", callback_data="freq_24h")],
+            ])
+            await callback.message.answer("Оберіть частоту надсилання:", reply_markup=keyboard)
     else:
         if coin_id not in user_settings[uid]["coins"]:
             user_settings[uid]["coins"].append(coin_id)

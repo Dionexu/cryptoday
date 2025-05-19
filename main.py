@@ -90,6 +90,7 @@ async def select_coin(callback: types.CallbackQuery):
             await callback.message.answer(f"⚠️ Потрібно вибрати 5 монет. Ви вибрали: {len(coins)}")
         else:
             await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
+            user_settings[uid].pop("coin_stage", None)
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Раз в годину", callback_data="freq_1h")],
                 [InlineKeyboardButton(text="Раз в 2 години", callback_data="freq_2h")],
@@ -106,6 +107,7 @@ async def select_coin(callback: types.CallbackQuery):
             ])
             await callback.message.answer("Оберіть частоту надсилання:", reply_markup=keyboard)
         await callback.answer()
+    return
     else:
         if "coin_stage" in user_settings.get(uid, {}):
             if coin_id not in user_settings[uid]["coins"]:

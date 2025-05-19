@@ -70,16 +70,43 @@ async def cmd_help(message: types.Message):
 
 @router.callback_query(F.data == "setup_coins")
 async def setup_coins(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Bitcoin", callback_data="coin_bitcoin"),
+         InlineKeyboardButton(text="Ethereum", callback_data="coin_ethereum")],
+        [InlineKeyboardButton(text="OK", callback_data="coin_done")]
+    ])
     user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
-    user_settings[callback.from_user.id]["coins"] = ["bitcoin", "ethereum"]
-    await callback.message.answer("🔘 Монети обрано: Bitcoin, Ethereum")
+    user_settings[callback.from_user.id]["coins"] = []
+    await callback.message.answer("Оберіть монети:", reply_markup=keyboard)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("coin_"))
+async def select_coin(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    coin = callback.data.split("_")[1]
+    if coin == "done":
+        coins = user_settings.get(uid, {}).get("coins", [])
+        await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
+    else:
+        user_settings[uid]["coins"].append(coin)
     await callback.answer()
 
 @router.callback_query(F.data == "setup_time")
 async def setup_time(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="07:00", callback_data="time_07:00"),
+         InlineKeyboardButton(text="09:00", callback_data="time_09:00"),
+         InlineKeyboardButton(text="12:00", callback_data="time_12:00")]
+    ])
+    await callback.message.answer("Оберіть час надсилання:", reply_markup=keyboard)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("time_"))
+async def select_time(callback: types.CallbackQuery):
+    time = callback.data.split("_")[1]
     user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
-    user_settings[callback.from_user.id]["time"] = "09:00"
-    await callback.message.answer("🕒 Час встановлено на 09:00 (UTC)")
+    user_settings[callback.from_user.id]["time"] = time
+    await callback.message.answer(f"🕒 Час встановлено на {time} (UTC)")
     await callback.answer()
 
 @router.callback_query(F.data == "setup_timezone")

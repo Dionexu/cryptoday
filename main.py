@@ -244,8 +244,7 @@ async def price_notifier():
 
             if should_send:
                 try:
-                    text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):
-"
+      text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
                     async with aiohttp.ClientSession() as session:
                         for coin in coins:
                             url = f"https://api.coingecko.com/api/v3/simple/price"

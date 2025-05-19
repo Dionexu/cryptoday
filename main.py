@@ -102,6 +102,7 @@ async def select_coin(callback: types.CallbackQuery):
         if "coin_stage" in user_settings.get(uid, {}):
             if coin_id not in user_settings[uid]["coins"]:
                 user_settings[uid]["coins"].append(coin_id)
+                await callback.message.answer(f"✅ Монету обрано: {coin_id.replace('-', ' ').title()}")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("freq_"))

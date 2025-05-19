@@ -6,7 +6,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
-from aiogram.webhook.aiohttp_server import setup_application
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # Настройка логирования
 logging.basicConfig(
@@ -76,6 +76,11 @@ async def on_shutdown(bot_instance: Bot):
 # --- Основная функция ---
 async def main():
     app = web.Application()
+
+    # Обработка входящих webhook-запросов
+    webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    app.router.add_route("POST", WEBHOOK_PATH, webhook_handler.handle)
+
     setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
 
     runner = web.AppRunner(app)

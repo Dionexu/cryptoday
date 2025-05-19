@@ -63,6 +63,9 @@ async def on_startup(bot_instance: Bot):
     me = await bot_instance.get_me()
     logger.info(f"Bot @{me.username} (ID: {me.id}) started with webhook: {WEBHOOK_URL}")
 
+    webhook_info = await bot_instance.get_webhook_info()
+    logger.info(f"🔎 Current webhook info: URL={webhook_info.url}, has_custom_certificate={webhook_info.has_custom_certificate}, pending_update_count={webhook_info.pending_update_count}")
+
 async def on_shutdown(bot_instance: Bot):
     try:
         await bot_instance.session.close()

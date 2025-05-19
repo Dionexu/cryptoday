@@ -2,11 +2,17 @@ import os
 import logging
 import asyncio
 from aiohttp import web
+from datetime import datetime, timedelta
 
-from aiogram import Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.storage.memory import MemoryStorage
+
+import json
+import aiohttp
 
 # Настройка логирования
 logging.basicConfig(
@@ -36,23 +42,73 @@ PORT = int(os.getenv("PORT", "3000"))
 
 # --- Инициализация Aiogram ---
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
+
+# --- Временное хранилище ---
+user_settings = {}
 
 # --- ОБРАБОТЧИКИ ---
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
-    logger.info(f"User {message.from_user.id} ({message.from_user.full_name}) triggered /start command.")
-    try:
-        await message.answer(
-            f"Привет, {message.from_user.full_name}!\n"
-            "Я твой бот, готовый к работе.\n"
-            "Пока я умею только это, но ты можешь научить меня новому!"
-        )
-        logger.info(f"Successfully replied to /start for user {message.from_user.id}")
-    except Exception as e:
-        logger.error(f"Error in cmd_start for user {message.from_user.id}: {e}")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ Налаштувати монети", callback_data="setup_coins")],
+        [InlineKeyboardButton(text="⏰ Час та частота", callback_data="setup_time")],
+        [InlineKeyboardButton(text="🌍 Таймзона", callback_data="setup_timezone")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
+    ])
+    await message.answer(
+        "Привіт! Я бот-сводка курсу криптовалют. Обери, що хочеш налаштувати:",
+        reply_markup=keyboard
+    )
+
+@router.message(Command("help"))
+async def cmd_help(message: types.Message):
+    await message.answer("/start — налаштування\n/help — допомога\nВибір монет, часу, частоти, таймзони, скидання налаштувань через кнопки")
+
+@router.callback_query(F.data == "setup_coins")
+async def setup_coins(callback: types.CallbackQuery):
+    user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
+    user_settings[callback.from_user.id]["coins"] = ["bitcoin", "ethereum"]
+    await callback.message.answer("🔘 Монети обрано: Bitcoin, Ethereum")
+    await callback.answer()
+
+@router.callback_query(F.data == "setup_time")
+async def setup_time(callback: types.CallbackQuery):
+    user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
+    user_settings[callback.from_user.id]["time"] = "09:00"
+    await callback.message.answer("🕒 Час встановлено на 09:00 (UTC)")
+    await callback.answer()
+
+@router.callback_query(F.data == "setup_timezone")
+async def setup_timezone(callback: types.CallbackQuery):
+    user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
+    user_settings[callback.from_user.id]["timezone"] = "+03:00"
+    await callback.message.answer("🌐 Таймзона встановлена на +03:00")
+    await callback.answer()
+
+@router.callback_query(F.data == "reset_settings")
+async def reset_settings(callback: types.CallbackQuery):
+    user_settings.pop(callback.from_user.id, None)
+    await callback.message.answer("🔄 Всі налаштування скинуто. Почнемо знову з /start")
+    await callback.answer()
+
+@router.message(Command("test"))
+async def test_api(message: types.Message):
+    coins = user_settings.get(message.from_user.id, {}).get("coins", ["bitcoin"])
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get("https://api.coingecko.com/api/v3/simple/price", params={
+                "ids": ",".join(coins),
+                "vs_currencies": "usd"
+            }) as resp:
+                data = await resp.json()
+                text = "\n".join([f"{coin.title()}: ${data[coin]['usd']}" for coin in coins if coin in data])
+                await message.answer(f"📈 Поточні ціни:\n{text}")
+        except Exception as e:
+            await message.answer(f"❌ Помилка при отриманні даних: {e}")
 
 # --- Webhook Startup/Shutdown ---
 async def on_startup(bot_instance: Bot):

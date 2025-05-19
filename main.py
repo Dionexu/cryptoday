@@ -76,10 +76,7 @@ async def on_shutdown(bot_instance: Bot):
 # --- Основная функция ---
 async def main():
     app = web.Application()
-    setup_application(app, dp, bot=bot, on_shutdown=on_shutdown)
-
-    # 👇 Ручной вызов on_startup
-    await on_startup(bot)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
 
     runner = web.AppRunner(app)
     await runner.setup()

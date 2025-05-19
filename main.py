@@ -102,7 +102,7 @@ async def select_coin(callback: types.CallbackQuery):
         await callback.answer()
     else:
         if "coin_stage" in user_settings.get(uid, {}):
-            if len(user_settings[uid]["coins"]) >= 5:
+            if "coin_stage" in user_settings.get(uid, {}) and len(user_settings[uid]["coins"]) >= 5:
                 await callback.message.answer("⚠️ Ви вже вибрали 5 монет.")
             elif coin_id not in user_settings[uid]["coins"]:
                 user_settings[uid]["coins"].append(coin_id)
@@ -124,13 +124,11 @@ async def select_frequency(callback: types.CallbackQuery):
         await callback.message.answer("Оберіть час надсилання:", reply_markup=keyboard)
     else:
         await callback.message.answer(f"⏱ Частота встановлена: 1 раз в {freq[:-1]} годин")
-        # sleep mode for 1h and 2h
-        hours = [f"{str(h).zfill(2)}:00" for h in range(24)]
+        times = [f"{str(h).zfill(2)}:00" for h in range(24)]
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"{h1} - {h2}", callback_data=f"sleep_{h1}_{h2}")]
-            for h1 in hours for h2 in hours if h1 != h2
-        ][::6])  # ограничим до нескольких опций, можно доработать
-        await callback.message.answer("🌙 Оберіть період 'режиму сну', коли повідомлення не надсилатимуться:", reply_markup=keyboard)
+            [InlineKeyboardButton(text=t, callback_data=f"sleepstart_{t}")] for t in times
+        ] + [[InlineKeyboardButton(text="❌ Вимкнути режим сну", callback_data="sleep_off")]])
+        await callback.message.answer("🌙 Оберіть початок 'режиму сну' або вимкніть його:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("settime_"))
@@ -156,14 +154,41 @@ async def choose_send_time(callback: types.CallbackQuery):
         await callback.message.answer(f"⏱ Час встановлено: {time} (раз на день)")
     await callback.answer()
 
-@router.callback_query(F.data.startswith("sleep_"))
-async def set_sleep_mode(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("sleepstart_"))
+async def choose_sleep_start(callback: types.CallbackQuery):
     uid = callback.from_user.id
-    parts = callback.data.split("_")
-    if len(parts) == 3:
-        start, end = parts[1], parts[2]
-        user_settings[uid]["sleep"] = {"start": start, "end": end}
-        await callback.message.answer(f"🌙 Режим сну встановлено з {start} до {end} 🛌")
+    start = callback.data.split("_")[1]
+    user_settings[uid]["sleep_start"] = start
+    times = [f"{str(h).zfill(2)}:00" for h in range(24)]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t, callback_data=f"sleepend_{t}")] for t in times
+    ])
+    await callback.message.answer(f"🛌 Початок режиму сну: {start}
+Оберіть час завершення:", reply_markup=keyboard)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("sleepend_"))
+async def choose_sleep_end(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    end = callback.data.split("_")[1]
+    start = user_settings[uid].get("sleep_start")
+    user_settings[uid]["sleep"] = {"start": start, "end": end}
+    user_settings[uid].pop("sleep_start", None)
+    await callback.message.answer(f"🌙 Режим сну встановлено з {start} до {end} 🛌")
+    await callback.answer()
+
+@router.callback_query(F.data == "sleep_off")
+async def disable_sleep_mode(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    user_settings[uid].pop("sleep", None)
+    user_settings[uid].pop("sleep_start", None)
+    await callback.message.answer("❌ Режим сну вимкнено.")
+
+    # Після всіх налаштувань — фінальне повідомлення
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Скинути всі налаштування", callback_data="reset_settings")]
+    ])
+    await callback.message.answer("✅ Налаштування збережено. Ви можете скинути їх у будь-який момент:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "reset_settings")

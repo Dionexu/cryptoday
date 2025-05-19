@@ -102,7 +102,9 @@ async def select_coin(callback: types.CallbackQuery):
         await callback.answer()
     else:
         if "coin_stage" in user_settings.get(uid, {}):
-            if coin_id not in user_settings[uid]["coins"]:
+            if len(user_settings[uid]["coins"]) >= 5:
+                await callback.message.answer("⚠️ Ви вже вибрали 5 монет.")
+            elif coin_id not in user_settings[uid]["coins"]:
                 user_settings[uid]["coins"].append(coin_id)
                 await callback.message.answer(f"✅ Монету обрано: {coin_id.replace('-', ' ').title()}")
     await callback.answer()

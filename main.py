@@ -55,10 +55,9 @@ async def cmd_start(message: types.Message):
         logger.error(f"Error in cmd_start for user {message.from_user.id}: {e}")
 
 # --- Webhook Startup/Shutdown ---
-async def on_startup(bot_instance: Bot, dispatcher: Dispatcher):
+async def on_startup(bot_instance: Bot):
     await bot_instance.set_webhook(
         url=WEBHOOK_URL,
-        allowed_updates=dispatcher.resolve_used_update_types(),
         drop_pending_updates=True
     )
     me = await bot_instance.get_me()
@@ -73,11 +72,8 @@ async def on_shutdown(bot_instance: Bot):
 
 # --- Основная функция ---
 async def main():
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
-
     app = web.Application()
-    setup_application(app, dp, bot=bot, dispatcher=dp)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
 
     runner = web.AppRunner(app)
     await runner.setup()

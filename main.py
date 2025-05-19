@@ -163,7 +163,8 @@ async def choose_sleep_start(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t, callback_data=f"sleepend_{t}")] for t in times
     ])
-    await callback.message.answer(f"🛌 Початок режиму сну: {start}\nОберіть час завершення:", reply_markup=keyboard)
+    await callback.message.answer(f"🛌 Початок режиму сну: {start}
+Оберіть час завершення:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("sleepend_"))
@@ -210,6 +211,68 @@ async def on_startup(bot_instance: Bot):
 async def on_shutdown(bot_instance: Bot):
     await bot_instance.session.close()
 
+async def price_notifier():
+    while True:
+        now = datetime.utcnow()
+        for uid, settings in user_settings.items():
+            coins = settings.get("coins")
+            freq = settings.get("frequency")
+            tz = settings.get("timezone", "+00:00")
+            time_str = settings.get("time")
+            second_time = settings.get("second_time")
+            sleep = settings.get("sleep")
+
+            # Підрахунок поточного часу користувача з урахуванням timezone
+            offset_hours = int(tz.split(":")[0])
+            local_hour = (now + timedelta(hours=offset_hours)).strftime("%H:%M")
+
+            # Пропускаємо, якщо користувач ще не завершив налаштування
+            if not coins or not freq:
+                continue
+
+            # Режим сну
+            if sleep and sleep.get("start") and sleep.get("end"):
+                start, end = sleep["start"], sleep["end"]
+                if start < end:
+                    if start <= local_hour < end:
+                        continue
+                else:  # нічний період, типу 22:00 — 06:00
+                    if local_hour >= start or local_hour < end:
+                        continue
+
+            # Перевірка часу надсилання
+            should_send = False
+            if freq in ["1h", "2h"]:
+                now_minute = now.minute
+                interval = int(freq[:-1])
+                if now.minute == 0 and now.hour % interval == 0:
+                    should_send = True
+            elif freq == "12h" and local_hour in [time_str, second_time]:
+                should_send = True
+            elif freq == "24h" and local_hour == time_str:
+                should_send = True
+
+            if should_send:
+                try:
+                    text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):
+"
+                    async with aiohttp.ClientSession() as session:
+                        for coin in coins:
+                            url = f"https://api.coingecko.com/api/v3/simple/price"
+                            params = {"ids": coin, "vs_currencies": "usd"}
+                            async with session.get(url, params=params) as resp:
+                                data = await resp.json()
+                                price = data.get(coin, {}).get("usd")
+                                if price:
+                                    text += f"{coin.capitalize()}: ${price}
+"
+                    await bot.send_message(uid, text.strip())
+                except Exception as e:
+                    logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
+
+        await asyncio.sleep(60)
+
+
 async def main():
     app = web.Application()
     webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
@@ -221,6 +284,9 @@ async def main():
     site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
     logger.info(f"🚀 Starting web server on http://0.0.0.0:{PORT}")
     await site.start()
+
+    # Запуск фону з перевірками
+    asyncio.create_task(price_notifier())
 
     try:
         await asyncio.Event().wait()

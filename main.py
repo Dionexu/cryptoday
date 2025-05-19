@@ -242,19 +242,7 @@ async def price_notifier():
             elif freq == "24h" and local_hour == time_str:
                 should_send = True
 
-         if should_send:
-    try:
-        text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
-        async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = f"https://api.coingecko.com/api/v3/simple/price"
-                params = {"ids": coin, "vs_currencies": "usd"}
-                async with session.get(url, params=params) as resp:
-                    data = await resp.json()
-                    price = data.get(coin, {}).get("usd")
-                    if price:
-                        text += f"{coin.capitalize()}: ${price}\n"
-        await bot.send_message(uid, text.strip())
+
     except Exception as e:
         logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
 

@@ -64,10 +64,6 @@ async def cmd_start(message: types.Message):
         reply_markup=keyboard
     )
 
-@router.message(Command("help"))
-async def cmd_help(message: types.Message):
-    await message.answer("/start — налаштування\n/help — допомога\nВибір монет, часу, частоти, таймзони, скидання налаштувань через кнопки")
-
 @router.callback_query(F.data == "setup_coins")
 async def setup_coins(callback: types.CallbackQuery):
     await callback.message.answer("Введи назву монети або її частину (наприклад: btc або ethereum):")
@@ -83,9 +79,9 @@ async def search_coin(message: types.Message):
     query = message.text.strip().lower()
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get("https://api.coingecko.com/api/v3/coins/list") as resp:
-                all_coins = await resp.json()
-                matches = [c for c in all_coins if query in c['id'] or query in c['symbol'] or query in c['name'].lower()]
+            async with session.get("https://api.coingecko.com/api/v3/search", params={"query": query}) as resp:
+                data = await resp.json()
+                matches = data.get("coins", [])
                 if not matches:
                     await message.answer("❌ Монету не знайдено. Спробуйте ще раз.")
                     return
@@ -101,13 +97,13 @@ async def search_coin(message: types.Message):
 @router.callback_query(F.data.startswith("coin_"))
 async def select_coin(callback: types.CallbackQuery):
     uid = callback.from_user.id
-    coin = callback.data.split("_")[1]
-    if coin == "done":
+    coin_id = callback.data[len("coin_"):]
+    if coin_id == "done":
         coins = user_settings.get(uid, {}).get("coins", [])
         await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
     else:
-        if coin not in user_settings[uid]["coins"]:
-            user_settings[uid]["coins"].append(coin)
+        if coin_id not in user_settings[uid]["coins"]:
+            user_settings[uid]["coins"].append(coin_id)
     await callback.answer()
 
 @router.callback_query(F.data == "setup_time")
@@ -140,21 +136,6 @@ async def reset_settings(callback: types.CallbackQuery):
     user_settings.pop(callback.from_user.id, None)
     await callback.message.answer("🔄 Всі налаштування скинуто. Почнемо знову з /start")
     await callback.answer()
-
-@router.message(Command("test"))
-async def test_api(message: types.Message):
-    coins = user_settings.get(message.from_user.id, {}).get("coins", ["bitcoin"])
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get("https://api.coingecko.com/api/v3/simple/price", params={
-                "ids": ",".join(coins),
-                "vs_currencies": "usd"
-            }) as resp:
-                data = await resp.json()
-                text = "\n".join([f"{coin.title()}: ${data[coin]['usd']}" for coin in coins if coin in data])
-                await message.answer(f"📈 Поточні ціни:\n{text}")
-        except Exception as e:
-            await message.answer(f"❌ Помилка при отриманні даних: {e}")
 
 # --- Webhook Startup/Shutdown ---
 async def on_startup(bot_instance: Bot):

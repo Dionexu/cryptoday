@@ -70,15 +70,33 @@ async def cmd_help(message: types.Message):
 
 @router.callback_query(F.data == "setup_coins")
 async def setup_coins(callback: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Bitcoin", callback_data="coin_bitcoin"),
-         InlineKeyboardButton(text="Ethereum", callback_data="coin_ethereum")],
-        [InlineKeyboardButton(text="OK", callback_data="coin_done")]
-    ])
+    await callback.message.answer("Введи назву монети або її частину (наприклад: btc або ethereum):")
     user_settings[callback.from_user.id] = user_settings.get(callback.from_user.id, {})
     user_settings[callback.from_user.id]["coins"] = []
-    await callback.message.answer("Оберіть монети:", reply_markup=keyboard)
     await callback.answer()
+
+@router.message()
+async def search_coin(message: types.Message):
+    if "coins" not in user_settings.get(message.from_user.id, {}):
+        return
+
+    query = message.text.strip().lower()
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get("https://api.coingecko.com/api/v3/coins/list") as resp:
+                all_coins = await resp.json()
+                matches = [c for c in all_coins if query in c['id'] or query in c['symbol'] or query in c['name'].lower()]
+                if not matches:
+                    await message.answer("❌ Монету не знайдено. Спробуйте ще раз.")
+                    return
+
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text=c['name'], callback_data=f"coin_{c['id']}") for c in matches[:3]],
+                    [InlineKeyboardButton(text="✅ Готово", callback_data="coin_done")]
+                ])
+                await message.answer("Оберіть монету зі списку:", reply_markup=keyboard)
+        except Exception as e:
+            await message.answer(f"❌ Помилка при пошуку: {e}")
 
 @router.callback_query(F.data.startswith("coin_"))
 async def select_coin(callback: types.CallbackQuery):
@@ -88,7 +106,8 @@ async def select_coin(callback: types.CallbackQuery):
         coins = user_settings.get(uid, {}).get("coins", [])
         await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
     else:
-        user_settings[uid]["coins"].append(coin)
+        if coin not in user_settings[uid]["coins"]:
+            user_settings[uid]["coins"].append(coin)
     await callback.answer()
 
 @router.callback_query(F.data == "setup_time")

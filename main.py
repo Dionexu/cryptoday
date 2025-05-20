@@ -166,7 +166,7 @@ async def handle_coin_text(message: types.Message):
 
     async with aiohttp.ClientSession() as session:
         url = "https://api.coingecko.com/api/v3/coins/list"
-                async with session.get(url) as resp:
+        async with session.get(url) as resp:
             all_coins = await resp.json()
                         if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
                 await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")

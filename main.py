@@ -129,6 +129,57 @@ async def handle_reset(callback: types.CallbackQuery):
     await callback.answer()
 
 
+@router.message()
+async def handle_coin_text(message: types.Message):
+    global coin_list_cache
+    user_id = message.from_user.id
+    coin = message.text.lower()
+
+    if coin == "готово":
+        await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
+        return
+
+    try:
+        if coin_list_cache is None:
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.coingecko.com/api/v3/coins/list"
+                async with session.get(url) as resp:
+                    coin_list_cache = await resp.json()
+                    logger.warning(f"[DEBUG] all_coins cached (partial): {str(coin_list_cache)[:500]}")
+
+        all_coins = coin_list_cache
+        logger.warning(f"[DEBUG] all_coins (partial): {str(all_coins)[:500]}")
+        if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
+            await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")
+            return
+
+        id_map = {c['id']: c['id'] for c in all_coins}
+        symbol_map = {c['symbol']: c['id'] for c in all_coins}
+        valid_ids = set(id_map.keys()).union(symbol_map.keys())
+
+        if coin not in valid_ids:
+            await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
+            return
+
+        if coin in symbol_map:
+            coin = symbol_map[coin]
+
+        user_data = user_settings.setdefault(user_id, {"coins": []})
+        coins = user_data["coins"]
+
+        if coin in coins:
+            await message.answer("ℹ️ Цю монету вже додано.")
+        elif len(coins) >= 5:
+            await message.answer("⚠️ Можна обрати максимум 5 монет.")
+        else:
+            coins.append(coin)
+            await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
+
+    except Exception as e:
+        logger.warning(f"❌ Помилка обробки монети: {e}")
+        await message.answer("❌ Сталася помилка. Спробуйте ще раз пізніше.")
+
+
 @router.callback_query(F.data == "get_prices")
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -136,39 +187,21 @@ async def handle_prices(callback: types.CallbackQuery):
     text = "📈 Поточні ціни:\n"
 
     try:
-            if coin_list_cache is None:
         async with aiohttp.ClientSession() as session:
-            url = "https://api.coingecko.com/api/v3/coins/list"
-            async with session.get(url) as resp:
-                coin_list_cache = await resp.json()
-                logger.warning(f"[DEBUG] all_coins cached (partial): {str(coin_list_cache)[:500]}")
-    all_coins = coin_list_cache
-            logger.warning(f"[DEBUG] all_coins (partial): {str(all_coins)[:500]}")
-            if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
-                await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")
-                return
-        id_map = {c['id']: c['id'] for c in all_coins}
-        symbol_map = {c['symbol']: c['id'] for c in all_coins}
-        valid_ids = set(id_map.keys()).union(symbol_map.keys())
+            for coin in coins:
+                url = "https://api.coingecko.com/api/v3/simple/price"
+                params = {"ids": coin, "vs_currencies": "usd"}
+                async with session.get(url, params=params) as resp:
+                    data = await resp.json()
+                    price = data.get(coin, {}).get("usd")
+                    if price:
+                        text += f"{coin.capitalize()}: ${price}\n"
+        await callback.message.answer(text.strip())
+    except Exception as e:
+        logger.warning(f"❌ Помилка отримання цін: {e}")
+        await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
 
-    if coin not in valid_ids:
-        await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
-        return
 
-    # Перетворити символ у ID, якщо потрібно
-    if coin in symbol_map:
-        coin = symbol_map[coin]
-
-    user_data = user_settings.setdefault(user_id, {"coins": []})
-    coins = user_data["coins"]
-
-    if coin in coins:
-        await message.answer("ℹ️ Цю монету вже додано.")
-    elif len(coins) >= 5:
-        await message.answer("⚠️ Можна обрати максимум 5 монет.")
-    else:
-        coins.append(coin)
-        await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -180,15 +213,15 @@ async def cmd_start(message: types.Message):
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
 
-
-
 async def on_startup(bot_instance: Bot):
     await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
     me = await bot_instance.get_me()
     logger.info(f"Bot @{me.username} (ID: {me.id}) started with webhook: {WEBHOOK_URL}")
 
+
 async def on_shutdown(bot_instance: Bot):
     await bot_instance.session.close()
+
 
 async def price_notifier():
     while True:
@@ -269,6 +302,7 @@ async def main():
         await asyncio.Event().wait()
     finally:
         await runner.cleanup()
+
 
 if __name__ == "__main__":
     try:

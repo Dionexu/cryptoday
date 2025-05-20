@@ -50,29 +50,8 @@ async def handle_reset(callback: types.CallbackQuery):
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:"
-    try:
-        async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = "https://api.coingecko.com/api/v3/simple/price"
-                params = {"ids": coin, "vs_currencies": "usd"}
-                async with session.get(url, params=params) as resp:
-                    data = await resp.json()
-                    price = data.get(coin, {}).get("usd")
-                    if price:
-                        text += f"{coin.capitalize()}: ${price}"
-        await callback.message.answer(text.strip())
-    except Exception as e:
-        await callback.message.answer("❌ Помилка при отриманні даних.")
-        logger.error(f"Callback price error: {e}")
-    await callback.answer()
-
-
-@router.callback_query(F.data == "get_prices")
-async def handle_prices(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:\n"
+    text = "📈 Поточні ціни:
+""
     try:
         async with aiohttp.ClientSession() as session:
             for coin in coins:
@@ -90,7 +69,6 @@ async def handle_prices(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.message(Command("start"))
 @router.message(F.text.regexp(r"^[a-z0-9\-]+$"))
 async def handle_coin_text(message: types.Message):
     user_id = message.from_user.id
@@ -124,6 +102,7 @@ async def handle_coin_text(message: types.Message):
     else:
         coins.append(coin)
         await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
+@router.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")],

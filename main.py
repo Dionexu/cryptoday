@@ -93,9 +93,9 @@ async def handle_coin_text(message: types.Message):
         url = "https://api.coingecko.com/api/v3/coins/list"
         async with session.get(url) as resp:
             all_coins = await resp.json()
-                id_map = {c['id']: c['id'] for c in all_coins}
-    symbol_map = {c['symbol']: c['id'] for c in all_coins}
-    valid_ids = set(id_map.keys()).union(symbol_map.keys())
+        id_map = {c['id']: c['id'] for c in all_coins}
+            symbol_map = {c['symbol']: c['id'] for c in all_coins}
+            valid_ids = set(id_map.keys()).union(symbol_map.keys())
 
     if coin not in valid_ids:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")

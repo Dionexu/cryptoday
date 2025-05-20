@@ -210,7 +210,7 @@ async def handle_prices(callback: types.CallbackQuery):
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
 
 
-@router.message(Command("start"))
+@dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     logger.info(f"✅ Received /start from user {message.from_user.id}")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

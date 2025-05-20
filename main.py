@@ -212,6 +212,7 @@ async def handle_prices(callback: types.CallbackQuery):
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
+    logger.info(f"✅ Received /start from user {message.from_user.id}")
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
         [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],

@@ -143,7 +143,6 @@ async def handle_coin_text(message: types.Message):
     else:
         coins.append(coin)
         await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
-        await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

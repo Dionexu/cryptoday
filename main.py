@@ -1,3 +1,4 @@
+from aiogram import Bot
 
 
 async def on_startup(bot_instance: Bot):

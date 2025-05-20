@@ -110,9 +110,11 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price is not None:
-                        text += f"{coin.capitalize()}: ${price}"
+                        text += f"{coin.capitalize()}: ${price}
+"
                     else:
-                        text += f"{coin.capitalize()}: ⚠️ Немає даних"
+                        text += f"{coin.capitalize()}: ⚠️ Немає даних
+"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")
@@ -127,7 +129,27 @@ async def handle_coin_input(message: types.Message):
     if user_data.get("mode") != "selecting_coins":
         return
 
-    coin = message.text.lower().strip()
+    coin_input = message.text.lower().strip()
+
+    # Завантаження списку монет з CoinGecko (кешування)
+    global coin_list_cache
+    if not coin_list_cache:
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.coingecko.com/api/v3/coins/list"
+            async with session.get(url) as resp:
+                coin_list_cache = await resp.json()
+
+    # Пошук валідного ID за символом або ID
+    coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
+    id_map = {c['id']: c['id'] for c in coin_list_cache}
+
+    if coin_input in coin_map:
+        coin = coin_map[coin_input]
+    elif coin_input in id_map:
+        coin = coin_input
+    else:
+        await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
+        return
     if coin == "готово":
         user_data["mode"] = None
         await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")

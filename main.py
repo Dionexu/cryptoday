@@ -63,7 +63,54 @@ async def handle_frequency(callback: types.CallbackQuery):
     user_data = user_settings.setdefault(user_id, {})
     user_data["frequency"] = freq
 
-    await callback.message.answer(f"✅ Частоту встановлено: {freq}")
+    if freq in ["12h", "24h"]:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="08:00", callback_data="time_08:00"),
+             InlineKeyboardButton(text="12:00", callback_data="time_12:00")],
+            [InlineKeyboardButton(text="16:00", callback_data="time_16:00"),
+             InlineKeyboardButton(text="20:00", callback_data="time_20:00")]
+        ])
+        await callback.message.answer("🕐 Оберіть перший час розсилки (UTC):", reply_markup=keyboard)
+    else:
+        await callback.message.answer(f"✅ Частоту встановлено: {freq}")
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("time_"))
+async def handle_time(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    time_val = callback.data.replace("time_", "")
+    user_data = user_settings.setdefault(user_id, {})
+
+    if "time" not in user_data:
+        user_data["time"] = time_val
+        freq = user_data.get("frequency")
+
+        if freq == "12h":
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="08:00", callback_data="time2_08:00"),
+                 InlineKeyboardButton(text="12:00", callback_data="time2_12:00")],
+                [InlineKeyboardButton(text="16:00", callback_data="time2_16:00"),
+                 InlineKeyboardButton(text="20:00", callback_data="time2_20:00")]
+            ])
+            await callback.message.answer("🕑 Оберіть другий час розсилки (UTC):", reply_markup=keyboard)
+        else:
+            await callback.message.answer(f"✅ Час встановлено: {time_val}")
+    else:
+        await callback.message.answer("⚠️ Час уже встановлено. Якщо хочете змінити — скиньте налаштування.")
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("time2_"))
+async def handle_second_time(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    second_time = callback.data.replace("time2_", "")
+    user_data = user_settings.setdefault(user_id, {})
+    user_data["second_time"] = second_time
+
+    await callback.message.answer(f"✅ Другий час встановлено: {second_time}")
     await callback.answer()
 
 
@@ -120,7 +167,10 @@ async def handle_coin_text(message: types.Message):
     async with aiohttp.ClientSession() as session:
         url = "https://api.coingecko.com/api/v3/coins/list"
         async with session.get(url) as resp:
-            all_coins = await resp.json()
+                        all_coins = await resp.json()
+            if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
+                await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")
+                return
         id_map = {c['id']: c['id'] for c in all_coins}
         symbol_map = {c['symbol']: c['id'] for c in all_coins}
         valid_ids = set(id_map.keys()).union(symbol_map.keys())

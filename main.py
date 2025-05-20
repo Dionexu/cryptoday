@@ -146,3 +146,13 @@ async def handle_prices(callback: types.CallbackQuery):
         logger.warning(f"❌ Помилка отримання цін: {e}")
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
     await callback.answer()
+
+
+# === Run server ===
+if __name__ == "__main__":
+    app = web.Application()
+    app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
+    app.on_shutdown.append(lambda app: bot.session.close())
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    web.run_app(app, host="0.0.0.0", port=PORT)

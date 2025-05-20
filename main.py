@@ -38,6 +38,37 @@ dp.include_router(router)
 
 user_settings = {}
 
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")]
+    ])
+    await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "get_prices")
+async def handle_prices(callback: types.CallbackQuery):
+    coins = ["bitcoin", "ethereum"]
+    text = "📈 Поточні ціни:
+"
+    try:
+        async with aiohttp.ClientSession() as session:
+            for coin in coins:
+                url = "https://api.coingecko.com/api/v3/simple/price"
+                params = {"ids": coin, "vs_currencies": "usd"}
+                async with session.get(url, params=params) as resp:
+                    data = await resp.json()
+                    price = data.get(coin, {}).get("usd")
+                    if price:
+                        text += f"{coin.capitalize()}: ${price}
+"
+        await callback.message.answer(text.strip())
+    except Exception as e:
+        await callback.message.answer("❌ Помилка при отриманні даних.")
+        logger.error(f"Callback price error: {e}")
+    await callback.answer()
+
 async def on_startup(bot_instance: Bot):
     await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
     me = await bot_instance.get_me()

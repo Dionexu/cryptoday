@@ -50,8 +50,7 @@ async def handle_reset(callback: types.CallbackQuery):
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:
-"
+    text = "📈 Поточні ціни:"
     try:
         async with aiohttp.ClientSession() as session:
             for coin in coins:
@@ -61,8 +60,7 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price:
-                        text += f"{coin.capitalize()}: ${price}
-"
+                        text += f"{coin.capitalize()}: ${price}"
         await callback.message.answer(text.strip())
     except Exception as e:
         await callback.message.answer("❌ Помилка при отриманні даних.")

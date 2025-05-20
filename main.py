@@ -50,8 +50,7 @@ async def cmd_start(message: types.Message):
 @router.callback_query(F.data == "get_prices")
 async def handle_prices(callback: types.CallbackQuery):
     coins = ["bitcoin", "ethereum"]
-    text = "📈 Поточні ціни:
-"
+    text = "📈 Поточні ціни:\n"
     try:
         async with aiohttp.ClientSession() as session:
             for coin in coins:
@@ -61,8 +60,7 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price:
-                        text += f"{coin.capitalize()}: ${price}
-"
+                        text += f"{coin.capitalize()}: ${price}\n"
         await callback.message.answer(text.strip())
     except Exception as e:
         await callback.message.answer("❌ Помилка при отриманні даних.")

@@ -51,6 +51,7 @@ async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
 text = "📈 Поточні ціни:\n"
+
     try:
         async with aiohttp.ClientSession() as session:
             for coin in coins:

@@ -39,6 +39,13 @@ dp.include_router(router)
 user_settings = {}
 
 
+@router.callback_query(F.data == "select_coins")
+async def ask_coin_selection(callback: types.CallbackQuery):
+    user_settings[callback.from_user.id] = {"coins": []}
+    await callback.message.answer("Введіть назву або ID монети англійською (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите вибір.")
+    await callback.answer()
+
+
 @router.callback_query(F.data == "reset_settings")
 async def handle_reset(callback: types.CallbackQuery):
     user_settings.pop(callback.from_user.id, None)

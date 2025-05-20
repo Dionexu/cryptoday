@@ -110,9 +110,11 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price is not None:
-                        text += f"{coin.capitalize()}: ${price}"
+                        text += f"{coin.capitalize()}: ${price}
+"
                     else:
-                        text += f"{coin.capitalize()}: ⚠️ Немає даних"
+                        text += f"{coin.capitalize()}: ⚠️ Немає даних
+"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")

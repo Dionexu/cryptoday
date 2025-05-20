@@ -34,10 +34,15 @@ bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
-# moved to the end
 
 user_settings = {}
-coin_list_cache = None
+coin_list_cache = [
+    {"id": "bitcoin", "symbol": "btc", "name": "Bitcoin"},
+    {"id": "ethereum", "symbol": "eth", "name": "Ethereum"},
+    {"id": "solana", "symbol": "sol", "name": "Solana"},
+    {"id": "dogecoin", "symbol": "doge", "name": "Dogecoin"},
+    {"id": "toncoin", "symbol": "ton", "name": "Toncoin"}
+]
 
 @router.callback_query(F.data == "select_frequency")
 async def ask_frequency(callback: types.CallbackQuery):
@@ -161,6 +166,10 @@ async def handle_coin_text(message: types.Message):
             async with aiohttp.ClientSession() as session:
                 url = "https://api.coingecko.com/api/v3/coins/list"
                 async with session.get(url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"CoinGecko API error: {resp.status}")
+                        await message.answer("❌ CoinGecko зараз недоступний. Спробуйте пізніше.")
+                        return
                     coin_list_cache = await resp.json()
 
         all_coins = coin_list_cache
@@ -230,8 +239,6 @@ async def cmd_start(message: types.Message):
     ])
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
-
-# === Webhook server setup ===
 
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)

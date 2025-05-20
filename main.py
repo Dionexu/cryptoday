@@ -1,60 +1,204 @@
-2025-05-20T10:46:28.385674286Z Collecting pydantic-core==2.14.6 (from pydantic<2.6,>=2.4.1->aiogram==3.2.0->-r requirements.txt (line 1))
-2025-05-20T10:46:28.418785552Z   Downloading pydantic_core-2.14.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.5 kB)
-2025-05-20T10:46:28.716703518Z Collecting idna>=2.0 (from yarl<2.0,>=1.0->aiohttp==3.9.3->-r requirements.txt (line 2))
-2025-05-20T10:46:28.730385088Z   Downloading idna-3.10-py3-none-any.whl.metadata (10 kB)
-2025-05-20T10:46:28.864420933Z Collecting propcache>=0.2.1 (from yarl<2.0,>=1.0->aiohttp==3.9.3->-r requirements.txt (line 2))
-2025-05-20T10:46:28.877377063Z   Downloading propcache-0.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (10 kB)
-2025-05-20T10:46:28.916158861Z Downloading aiogram-3.2.0-py3-none-any.whl (470 kB)
-2025-05-20T10:46:28.954433662Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 470.1/470.1 kB 13.4 MB/s eta 0:00:00
-2025-05-20T10:46:28.970829103Z Downloading aiohttp-3.9.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.3 MB)
-2025-05-20T10:46:29.005835665Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 38.9 MB/s eta 0:00:00
-2025-05-20T10:46:29.019718979Z Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
-2025-05-20T10:46:29.046566413Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 509.2/509.2 kB 20.9 MB/s eta 0:00:00
-2025-05-20T10:46:29.060115381Z Downloading python_dotenv-1.1.0-py3-none-any.whl (20 kB)
-2025-05-20T10:46:29.085605414Z Downloading aiofiles-23.2.1-py3-none-any.whl (15 kB)
-2025-05-20T10:46:29.111758508Z Downloading aiosignal-1.3.2-py2.py3-none-any.whl (7.6 kB)
-2025-05-20T10:46:29.137978422Z Downloading attrs-25.3.0-py3-none-any.whl (63 kB)
-2025-05-20T10:46:29.152506755Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 63.8/63.8 kB 4.3 MB/s eta 0:00:00
-2025-05-20T10:46:29.165198371Z Downloading certifi-2025.4.26-py3-none-any.whl (159 kB)
-2025-05-20T10:46:29.182110659Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 159.6/159.6 kB 10.2 MB/s eta 0:00:00
-2025-05-20T10:46:29.197373883Z Downloading frozenlist-1.6.0-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (313 kB)
-2025-05-20T10:46:29.214488354Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 313.6/313.6 kB 20.3 MB/s eta 0:00:00
-2025-05-20T10:46:29.227498294Z Downloading magic_filter-1.0.12-py3-none-any.whl (11 kB)
-2025-05-20T10:46:29.252596842Z Downloading multidict-6.4.4-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (223 kB)
-2025-05-20T10:46:29.274101317Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 223.7/223.7 kB 12.3 MB/s eta 0:00:00
-2025-05-20T10:46:29.288324456Z Downloading pydantic-2.5.3-py3-none-any.whl (381 kB)
-2025-05-20T10:46:29.308948358Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 381.9/381.9 kB 19.8 MB/s eta 0:00:00
-2025-05-20T10:46:29.325760554Z Downloading pydantic_core-2.14.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
-2025-05-20T10:46:29.361777322Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 60.8 MB/s eta 0:00:00
-2025-05-20T10:46:29.374315896Z Downloading typing_extensions-4.13.2-py3-none-any.whl (45 kB)
-2025-05-20T10:46:29.389911054Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.8/45.8 kB 2.9 MB/s eta 0:00:00
-2025-05-20T10:46:29.402412188Z Downloading yarl-1.20.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (358 kB)
-2025-05-20T10:46:29.422936709Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 358.1/358.1 kB 18.6 MB/s eta 0:00:00
-2025-05-20T10:46:29.436065411Z Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
-2025-05-20T10:46:29.461535664Z Downloading idna-3.10-py3-none-any.whl (70 kB)
-2025-05-20T10:46:29.475037962Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 70.4/70.4 kB 5.2 MB/s eta 0:00:00
-2025-05-20T10:46:29.487366923Z Downloading propcache-0.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (232 kB)
-2025-05-20T10:46:29.502629277Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 232.5/232.5 kB 16.4 MB/s eta 0:00:00
-2025-05-20T10:46:29.638011771Z Installing collected packages: pytz, typing-extensions, python-dotenv, propcache, multidict, magic-filter, idna, frozenlist, certifi, attrs, annotated-types, aiofiles, yarl, pydantic-core, aiosignal, pydantic, aiohttp, aiogram
-2025-05-20T10:46:31.309841493Z Successfully installed aiofiles-23.2.1 aiogram-3.2.0 aiohttp-3.9.3 aiosignal-1.3.2 annotated-types-0.7.0 attrs-25.3.0 certifi-2025.4.26 frozenlist-1.6.0 idna-3.10 magic-filter-1.0.12 multidict-6.4.4 propcache-0.3.1 pydantic-2.5.3 pydantic-core-2.14.6 python-dotenv-1.1.0 pytz-2025.2 typing-extensions-4.13.2 yarl-1.20.0
-2025-05-20T10:46:31.454503853Z 
-2025-05-20T10:46:31.454525673Z [notice] A new release of pip is available: 24.0 -> 25.1.1
-2025-05-20T10:46:31.454530324Z [notice] To update, run: pip install --upgrade pip
-2025-05-20T10:46:36.953922591Z ==> Uploading build...
-2025-05-20T10:46:41.832896514Z ==> Uploaded in 3.6s. Compression took 1.3s
-2025-05-20T10:46:41.85038896Z ==> Build successful 🎉
-2025-05-20T10:46:45.348959186Z ==> Deploying...
-2025-05-20T10:48:12.890382294Z ==> No open ports detected, continuing to scan...
-2025-05-20T10:48:13.023839174Z ==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
-2025-05-20T10:48:18.81668846Z ==> Exited with status 1
-2025-05-20T10:48:18.834438979Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
-2025-05-20T10:48:17.5878291Z ==> Running 'python main.py'
-2025-05-20T10:48:17.787294013Z   File "/opt/render/project/src/main.py", line 53
-2025-05-20T10:48:17.787309463Z     text = "📈 Поточні ціни:
-2025-05-20T10:48:17.787313303Z            ^
-2025-05-20T10:48:17.787315993Z SyntaxError: unterminated string literal (detected at line 53)
-2025-05-20T10:48:25.991496042Z ==> Running 'python main.py'
-2025-05-20T10:48:26.183946451Z   File "/opt/render/project/src/main.py", line 53
-2025-05-20T10:48:26.183968182Z     text = "📈 Поточні ціни:
-2025-05-20T10:48:26.183971552Z            ^
-2025-05-20T10:48:26.183974492Z SyntaxError: unterminated string literal (detected at line 53)
+import os
+import asyncio
+import logging
+from aiohttp import web
+from datetime import datetime, timedelta
+import aiohttp
+
+from aiogram import Bot, Dispatcher, Router, types, F
+from aiogram.enums import ParseMode
+from aiogram.filters import Command
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.storage.memory import MemoryStorage
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError("No BOT_TOKEN provided.")
+
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+if not WEBHOOK_HOST:
+    raise RuntimeError("No WEBHOOK_HOST provided.")
+
+if not WEBHOOK_HOST.startswith(("http://", "https://")):
+    WEBHOOK_HOST = "https://" + WEBHOOK_HOST
+
+WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+PORT = int(os.getenv("PORT", "3000"))
+
+bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+router = Router()
+dp.include_router(router)
+
+user_settings = {}
+
+
+@router.callback_query(F.data == "reset_settings")
+async def handle_reset(callback: types.CallbackQuery):
+    user_settings.pop(callback.from_user.id, None)
+    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново командою /start або обрати монети.")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "get_prices")
+async def handle_prices(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
+    text = "📈 Поточні ціни:\n"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            for coin in coins:
+                url = "https://api.coingecko.com/api/v3/simple/price"
+                params = {"ids": coin, "vs_currencies": "usd"}
+                async with session.get(url, params=params) as resp:
+                    data = await resp.json()
+                    price = data.get(coin, {}).get("usd")
+                    if price:
+                        text += f"{coin.capitalize()}: ${price}\n"
+        await callback.message.answer(text.strip())
+    except Exception as e:
+        await callback.message.answer("❌ Помилка при отриманні даних.")
+        logger.error(f"Callback price error: {e}")
+    await callback.answer()
+
+
+@router.message(F.text.regexp(r"^[a-z0-9\-]+$"))
+async def handle_coin_text(message: types.Message):
+    user_id = message.from_user.id
+    coin = message.text.lower()
+
+    if coin == "готово":
+        coins = user_settings.get(user_id, {}).get("coins", [])
+        if coins:
+            await message.answer(f"✅ Ви обрали: {', '.join(coins).upper()}")
+        else:
+            await message.answer("⚠️ Ви ще не вибрали жодної монети.")
+        return
+
+    async with aiohttp.ClientSession() as session:
+        url = "https://api.coingecko.com/api/v3/coins/list"
+        async with session.get(url) as resp:
+            all_coins = await resp.json()
+            valid_ids = {c['id'] for c in all_coins}
+
+    if coin not in valid_ids:
+        await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
+        return
+
+    user_data = user_settings.setdefault(user_id, {"coins": []})
+    coins = user_data["coins"]
+
+    if coin in coins:
+        await message.answer("ℹ️ Цю монету вже додано.")
+    elif len(coins) >= 5:
+        await message.answer("⚠️ Можна обрати максимум 5 монет.")
+    else:
+        coins.append(coin)
+        await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")],
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
+    ])
+    await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
+
+
+
+
+async def on_startup(bot_instance: Bot):
+    await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+    me = await bot_instance.get_me()
+    logger.info(f"Bot @{me.username} (ID: {me.id}) started with webhook: {WEBHOOK_URL}")
+
+async def on_shutdown(bot_instance: Bot):
+    await bot_instance.session.close()
+
+async def price_notifier():
+    while True:
+        logger.info("[DEBUG] price_notifier активний")
+        now = datetime.utcnow()
+        for uid, settings in user_settings.items():
+            coins = settings.get("coins")
+            freq = settings.get("frequency")
+            tz = settings.get("timezone", "+00:00")
+            time_str = settings.get("time")
+            second_time = settings.get("second_time")
+            sleep = settings.get("sleep")
+
+            offset_hours = int(tz.split(":")[0])
+            local_hour = (now + timedelta(hours=offset_hours)).strftime("%H:%M")
+
+            if not coins or not freq or not time_str:
+                continue
+
+            if sleep and sleep.get("start") and sleep.get("end"):
+                start, end = sleep["start"], sleep["end"]
+                if start < end:
+                    if start <= local_hour < end:
+                        continue
+                else:
+                    if local_hour >= start or local_hour < end:
+                        continue
+
+            should_send = False
+            if freq == "24h" and local_hour == time_str:
+                should_send = True
+            elif freq == "12h" and second_time and local_hour in [time_str, second_time]:
+                should_send = True
+            elif freq == "1h" and now.minute == 0:
+                should_send = True
+            elif freq == "2h" and now.minute == 0 and now.hour % 2 == 0:
+                should_send = True
+
+            logger.info(f"[DEBUG] UID: {uid}, freq: {freq}, local_hour: {local_hour}, time_str: {time_str}, should_send: {should_send}")
+
+            if should_send:
+                try:
+                    text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
+                    async with aiohttp.ClientSession() as session:
+                        for coin in coins:
+                            url = "https://api.coingecko.com/api/v3/simple/price"
+                            params = {"ids": coin, "vs_currencies": "usd"}
+                            async with session.get(url, params=params) as resp:
+                                data = await resp.json()
+                                price = data.get(coin, {}).get("usd")
+                                if price:
+                                    text += f"{coin.capitalize()}: ${price}\n"
+                    await bot.send_message(uid, text.strip())
+                except Exception as e:
+                    logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
+        await asyncio.sleep(60)
+
+
+async def main():
+    app = web.Application()
+    webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    app.router.add_route("POST", WEBHOOK_PATH, webhook_handler.handle)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    logger.info(f"🚀 Starting web server on http://0.0.0.0:{PORT}")
+    await site.start()
+
+    asyncio.create_task(price_notifier())
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await runner.cleanup()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped manually (KeyboardInterrupt/SystemExit)!")

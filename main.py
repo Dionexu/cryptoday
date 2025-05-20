@@ -90,7 +90,6 @@ async def select_coin(callback: types.CallbackQuery):
             await callback.message.answer(f"⚠️ Потрібно вибрати 5 монет. Ви вибрали: {len(coins)}")
         else:
             await callback.message.answer(f"🔘 Монети обрано: {', '.join(map(str.capitalize, coins))}")
-        
             user_settings[uid].pop("coin_stage", None)
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Раз в годину", callback_data="freq_1h")],
@@ -99,21 +98,19 @@ async def select_coin(callback: types.CallbackQuery):
                 [InlineKeyboardButton(text="Раз на день", callback_data="freq_24h")],
             ])
             await callback.message.answer("Оберіть частоту надсилання:", reply_markup=keyboard)
-        await callback.answer()
     else:
-        if "coin_stage" in user_settings.get(uid, {}):
-            if "coin_stage" in user_settings.get(uid, {}) and len(user_settings[uid]["coins"]) >= 5:
-                await callback.message.answer("⚠️ Ви вже вибрали 5 монет.")
-            elif coin_id not in user_settings[uid]["coins"]:
+        if "coin_stage" in user_settings.get(uid, {}) and len(user_settings[uid]["coins"]) < 5:
+            if coin_id not in user_settings[uid]["coins"]:
                 user_settings[uid]["coins"].append(coin_id)
                 await callback.message.answer(f"✅ Монету обрано: {coin_id.replace('-', ' ').title()}")
+        elif len(user_settings[uid]["coins"]) >= 5:
+            await callback.message.answer("⚠️ Ви вже вибрали 5 монет.")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("freq_"))
 async def select_frequency(callback: types.CallbackQuery):
     freq = callback.data.split("_")[1]
     uid = callback.from_user.id
-    user_settings[uid] = user_settings.get(uid, {})
     user_settings[uid]["frequency"] = freq
 
     if freq in ["12h", "24h"]:
@@ -163,14 +160,23 @@ async def choose_sleep_start(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t, callback_data=f"sleepend_{t}")] for t in times
     ])
-
+    await callback.message.answer("🌙 Оберіть завершення 'режиму сну':", reply_markup=keyboard)
     await callback.answer()
 
-    # Після всіх налаштувань — фінальне повідомлення
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Скинути всі налаштування", callback_data="reset_settings")]
-    ])
-    await callback.message.answer("✅ Налаштування збережено. Ви можете скинути їх у будь-який момент:", reply_markup=keyboard)
+@router.callback_query(F.data.startswith("sleepend_"))
+async def choose_sleep_end(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    end = callback.data.split("_")[1]
+    start = user_settings[uid].get("sleep_start")
+    if start:
+        user_settings[uid]["sleep"] = {"start": start, "end": end}
+        await callback.message.answer(f"🌙 Режим сну встановлено з {start} до {end}.")
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Скинути всі налаштування", callback_data="reset_settings")]
+        ])
+        await callback.message.answer("✅ Налаштування збережено. Ви можете скинути їх у будь-який момент:", reply_markup=keyboard)
+    else:
+        await callback.message.answer("⚠️ Спочатку виберіть початок режиму сну.")
     await callback.answer()
 
 @router.callback_query(F.data == "sleep_off")
@@ -179,8 +185,6 @@ async def disable_sleep_mode(callback: types.CallbackQuery):
     user_settings[uid].pop("sleep", None)
     user_settings[uid].pop("sleep_start", None)
     await callback.message.answer("❌ Режим сну вимкнено.")
-
-    # Після всіх налаштувань — фінальне повідомлення
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Скинути всі налаштування", callback_data="reset_settings")]
     ])
@@ -193,14 +197,6 @@ async def reset_settings(callback: types.CallbackQuery):
     await callback.message.answer("🔄 Всі налаштування скинуто. Почнемо знову з /start")
     await callback.answer()
 
-async def on_startup(bot_instance: Bot):
-    await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
-    me = await bot_instance.get_me()
-    logger.info(f"Bot @{me.username} (ID: {me.id}) started with webhook: {WEBHOOK_URL}")
-
-async def on_shutdown(bot_instance: Bot):
-    await bot_instance.session.close()
-
 async def price_notifier():
     while True:
         now = datetime.utcnow()
@@ -212,51 +208,55 @@ async def price_notifier():
             second_time = settings.get("second_time")
             sleep = settings.get("sleep")
 
-            # Підрахунок поточного часу користувача з урахуванням timezone
             offset_hours = int(tz.split(":")[0])
             local_hour = (now + timedelta(hours=offset_hours)).strftime("%H:%M")
 
-            # Пропускаємо, якщо користувач ще не завершив налаштування
-            if not coins or not freq:
+            if not coins or not freq or not time_str:
                 continue
 
-            # Режим сну
             if sleep and sleep.get("start") and sleep.get("end"):
                 start, end = sleep["start"], sleep["end"]
                 if start < end:
                     if start <= local_hour < end:
                         continue
-                else:  # нічний період, типу 22:00 — 06:00
+                else:
                     if local_hour >= start or local_hour < end:
                         continue
 
-            # Перевірка часу надсилання
-                   if should_send:
-            try:
-                text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
-                async with aiohttp.ClientSession() as session:
-                    for coin in coins:
-                        url = "https://api.coingecko.com/api/v3/simple/price"
-                        params = {"ids": coin, "vs_currencies": "usd"}
-                        async with session.get(url, params=params) as resp:
-                            data = await resp.json()
-                            price = data.get(coin, {}).get("usd")
-                            if price:
-                                text += f"{coin.capitalize()}: ${price}\n"
-                await bot.send_message(uid, text.strip())
-            except Exception as e:
-                logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
+            should_send = False
+            if freq == "24h" and local_hour == time_str:
+                should_send = True
+            elif freq == "12h" and second_time and local_hour in [time_str, second_time]:
+                should_send = True
+            elif freq == "1h" and now.minute == 0:
+                should_send = True
+            elif freq == "2h" and now.minute == 0 and now.hour % 2 == 0:
+                should_send = True
 
+            if should_send:
+                try:
+                    text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):\n"
+                    async with aiohttp.ClientSession() as session:
+                        for coin in coins:
+                            url = "https://api.coingecko.com/api/v3/simple/price"
+                            params = {"ids": coin, "vs_currencies": "usd"}
+                            async with session.get(url, params=params) as resp:
                                 data = await resp.json()
                                 price = data.get(coin, {}).get("usd")
                                 if price:
-                                    text += f"{coin.capitalize()}: ${price}"
+                                    text += f"{coin.capitalize()}: ${price}\n"
                     await bot.send_message(uid, text.strip())
                 except Exception as e:
                     logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
-
         await asyncio.sleep(60)
 
+async def on_startup(bot_instance: Bot):
+    await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+    me = await bot_instance.get_me()
+    logger.info(f"Bot @{me.username} (ID: {me.id}) started with webhook: {WEBHOOK_URL}")
+
+async def on_shutdown(bot_instance: Bot):
+    await bot_instance.session.close()
 
 async def main():
     app = web.Application()
@@ -270,9 +270,7 @@ async def main():
     logger.info(f"🚀 Starting web server on http://0.0.0.0:{PORT}")
     await site.start()
 
-    # Запуск фону з перевірками
     asyncio.create_task(price_notifier())
-
     try:
         await asyncio.Event().wait()
     finally:

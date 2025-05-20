@@ -34,7 +34,7 @@ bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
-dp.include_router(router)
+# moved to the end
 
 user_settings = {}
 coin_list_cache = None
@@ -245,6 +245,7 @@ app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+dp.include_router(router)
 setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":

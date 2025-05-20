@@ -39,10 +39,77 @@ dp.include_router(router)
 user_settings = {}
 
 
+@router.callback_query(F.data == "get_prices")
+async def handle_prices(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
+    text = "📈 Поточні ціни:
+"
+    try:
+        async with aiohttp.ClientSession() as session:
+            for coin in coins:
+                url = "https://api.coingecko.com/api/v3/simple/price"
+                params = {"ids": coin, "vs_currencies": "usd"}
+                async with session.get(url, params=params) as resp:
+                    data = await resp.json()
+                    price = data.get(coin, {}).get("usd")
+                    if price:
+                        text += f"{coin.capitalize()}: ${price}
+"
+        await callback.message.answer(text.strip())
+    except Exception as e:
+        await callback.message.answer("❌ Помилка при отриманні даних.")
+        logger.error(f"Callback price error: {e}")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "select_coins")
+async def ask_coin_selection(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Bitcoin", callback_data="coin_bitcoin")],
+        [InlineKeyboardButton(text="Ethereum", callback_data="coin_ethereum")],
+        [InlineKeyboardButton(text="Solana", callback_data="coin_solana")],
+        [InlineKeyboardButton(text="DOGE", callback_data="coin_dogecoin")],
+        [InlineKeyboardButton(text="Готово ✅", callback_data="coin_done")],
+    ])
+    user_settings[callback.from_user.id] = {"coins": []}
+    await callback.message.answer("Оберіть до 5 монет:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("coin_"))
+async def handle_coin_choice(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    coin_key = callback.data.replace("coin_", "")
+
+    if coin_key == "done":
+        coins = user_settings.get(user_id, {}).get("coins", [])
+        if not coins:
+            await callback.message.answer("⚠️ Ви ще не вибрали жодної монети.")
+        else:
+            await callback.message.answer(f"✅ Ви обрали: {', '.join(coins).upper()}")
+        await callback.answer()
+        return
+
+    user_data = user_settings.setdefault(user_id, {"coins": []})
+    coins = user_data["coins"]
+
+    if coin_key not in coins:
+        if len(coins) < 5:
+            coins.append(coin_key)
+            await callback.message.answer(f"✅ Додано {coin_key.upper()} ({len(coins)}/5)")
+        else:
+            await callback.message.answer("⚠️ Можна обрати максимум 5 монет.")
+    else:
+        await callback.message.answer("ℹ️ Цю монету вже додано.")
+    await callback.answer()
+
+
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")]
+        [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")],
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")]
     ])
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 

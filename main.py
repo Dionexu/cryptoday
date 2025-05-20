@@ -204,7 +204,6 @@ async def handle_prices(callback: types.CallbackQuery):
                     price = data.get(coin, {}).get("usd")
                     if price:
                         text += f"{coin.capitalize()}: ${price}\n"
-"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")

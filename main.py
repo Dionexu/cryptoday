@@ -177,11 +177,14 @@ async def handle_coin_text(message: types.Message):
 
         if coin in coins:
             await message.answer("ℹ️ Цю монету вже додано.")
-        elif len(coins) >= 5:
+            return
+
+        if len(coins) >= 5:
             await message.answer("⚠️ Можна обрати максимум 5 монет.")
-        else:
-            coins.append(coin)
-            await message.answer(f"✅ Додано {coin.upper()} ({len(coins)}/5)")
+            return
+
+        coins.append(coin)
+        await message.answer(f"✅ Додано монету: <b>{coin.upper()}</b> ({len(coins)}/5)")
 
     except Exception as e:
         logger.warning(f"❌ Помилка обробки монети: {e}")

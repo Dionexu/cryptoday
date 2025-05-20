@@ -39,6 +39,34 @@ dp.include_router(router)
 user_settings = {}
 
 
+@router.callback_query(F.data == "select_frequency")
+async def ask_frequency(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Щогодини", callback_data="freq_1h")],
+        [InlineKeyboardButton(text="Кожні 2 години", callback_data="freq_2h")],
+        [InlineKeyboardButton(text="2 рази на день", callback_data="freq_12h")],
+        [InlineKeyboardButton(text="1 раз на день", callback_data="freq_24h")]
+    ])
+    await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("freq_"))
+async def handle_frequency(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    freq = callback.data.replace("freq_", "")
+
+    if freq not in ["1h", "2h", "12h", "24h"]:
+        await callback.message.answer("❌ Невірне значення частоти.")
+        return
+
+    user_data = user_settings.setdefault(user_id, {})
+    user_data["frequency"] = freq
+
+    await callback.message.answer(f"✅ Частоту встановлено: {freq}")
+    await callback.answer()
+
+
 @router.callback_query(F.data == "select_coins")
 async def ask_coin_selection(callback: types.CallbackQuery):
     user_settings[callback.from_user.id] = {"coins": []}
@@ -93,7 +121,7 @@ async def handle_coin_text(message: types.Message):
         url = "https://api.coingecko.com/api/v3/coins/list"
         async with session.get(url) as resp:
             all_coins = await resp.json()
-                id_map = {c['id']: c['id'] for c in all_coins}
+        id_map = {c['id']: c['id'] for c in all_coins}
         symbol_map = {c['symbol']: c['id'] for c in all_coins}
         valid_ids = set(id_map.keys()).union(symbol_map.keys())
 
@@ -118,6 +146,7 @@ async def handle_coin_text(message: types.Message):
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
         [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")],
         [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
         [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]

@@ -125,8 +125,14 @@ async def ask_coin_selection(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "reset_settings")
 async def handle_reset(callback: types.CallbackQuery):
-    user_settings.pop(callback.from_user.id, None)
-    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново командою /start або обрати монети.")
+    user_settings[callback.from_user.id] = {}
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
+        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
+    ])
+    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
     await callback.answer()
 
 

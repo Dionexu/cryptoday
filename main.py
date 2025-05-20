@@ -91,8 +91,6 @@ async def price_notifier():
                 try:
                     text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):
 "
-
-
                     async with aiohttp.ClientSession() as session:
                         for coin in coins:
                             url = "https://api.coingecko.com/api/v3/simple/price"
@@ -103,8 +101,6 @@ async def price_notifier():
                                 if price:
                                     text += f"{coin.capitalize()}: ${price}
 "
-
-
                     await bot.send_message(uid, text.strip())
                 except Exception as e:
                     logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")

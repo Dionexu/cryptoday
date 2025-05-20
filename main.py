@@ -48,6 +48,65 @@ async def on_startup(bot_instance: Bot):
 async def on_shutdown(bot_instance: Bot):
     await bot_instance.session.close()
 
+async def price_notifier():
+    while True:
+        logger.info("[DEBUG] price_notifier активний")
+        now = datetime.utcnow()
+        for uid, settings in user_settings.items():
+            coins = settings.get("coins")
+            freq = settings.get("frequency")
+            tz = settings.get("timezone", "+00:00")
+            time_str = settings.get("time")
+            second_time = settings.get("second_time")
+            sleep = settings.get("sleep")
+
+            offset_hours = int(tz.split(":")[0])
+            local_hour = (now + timedelta(hours=offset_hours)).strftime("%H:%M")
+
+            if not coins or not freq or not time_str:
+                continue
+
+            if sleep and sleep.get("start") and sleep.get("end"):
+                start, end = sleep["start"], sleep["end"]
+                if start < end:
+                    if start <= local_hour < end:
+                        continue
+                else:
+                    if local_hour >= start or local_hour < end:
+                        continue
+
+            should_send = False
+            if freq == "24h" and local_hour == time_str:
+                should_send = True
+            elif freq == "12h" and second_time and local_hour in [time_str, second_time]:
+                should_send = True
+            elif freq == "1h" and now.minute == 0:
+                should_send = True
+            elif freq == "2h" and now.minute == 0 and now.hour % 2 == 0:
+                should_send = True
+
+            logger.info(f"[DEBUG] UID: {uid}, freq: {freq}, local_hour: {local_hour}, time_str: {time_str}, should_send: {should_send}")
+
+            if should_send:
+                try:
+                    text = f"📈 Ціни на {', '.join(coins).upper()} (UTC{tz}):
+"
+                    async with aiohttp.ClientSession() as session:
+                        for coin in coins:
+                            url = "https://api.coingecko.com/api/v3/simple/price"
+                            params = {"ids": coin, "vs_currencies": "usd"}
+                            async with session.get(url, params=params) as resp:
+                                data = await resp.json()
+                                price = data.get(coin, {}).get("usd")
+                                if price:
+                                    text += f"{coin.capitalize()}: ${price}
+"
+                    await bot.send_message(uid, text.strip())
+                except Exception as e:
+                    logger.warning(f"❌ Помилка надсилання повідомлення користувачу {uid}: {e}")
+        await asyncio.sleep(60)
+
+
 async def main():
     app = web.Application()
     webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)

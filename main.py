@@ -67,10 +67,6 @@ async def ask_coin_selection(callback: types.CallbackQuery):
     await callback.message.answer("Введіть назву або ID монети англійською (наприклад, `bitcoin`, `solana`, `dogecoin`). Введіть `готово`, коли закінчите.")
     await callback.answer()
 
-
-
-        return
-
     user_data = user_settings.setdefault(user_id, {"coins": []})
     coins = user_data["coins"]
 

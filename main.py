@@ -37,6 +37,7 @@ router = Router()
 dp.include_router(router)
 
 user_settings = {}
+coin_list_cache = None
 
 
 @router.callback_query(F.data == "select_frequency")
@@ -135,39 +136,13 @@ async def handle_prices(callback: types.CallbackQuery):
     text = "📈 Поточні ціни:\n"
 
     try:
+            if coin_list_cache is None:
         async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = "https://api.coingecko.com/api/v3/simple/price"
-                params = {"ids": coin, "vs_currencies": "usd"}
-                async with session.get(url, params=params) as resp:
-                    data = await resp.json()
-                    price = data.get(coin, {}).get("usd")
-                    if price:
-                        text += f"{coin.capitalize()}: ${price}\n"
-        await callback.message.answer(text.strip())
-    except Exception as e:
-        await callback.message.answer("❌ Помилка при отриманні даних.")
-        logger.error(f"Callback price error: {e}")
-    await callback.answer()
-
-
-@router.message(F.text.regexp(r"^[a-z0-9\-]+$"))
-async def handle_coin_text(message: types.Message):
-    user_id = message.from_user.id
-    coin = message.text.lower()
-
-    if coin == "готово":
-        coins = user_settings.get(user_id, {}).get("coins", [])
-        if coins:
-            await message.answer(f"✅ Ви обрали: {', '.join(coins).upper()}")
-        else:
-            await message.answer("⚠️ Ви ще не вибрали жодної монети.")
-        return
-
-    async with aiohttp.ClientSession() as session:
-        url = "https://api.coingecko.com/api/v3/coins/list"
-        async with session.get(url) as resp:
-            all_coins = await resp.json()
+            url = "https://api.coingecko.com/api/v3/coins/list"
+            async with session.get(url) as resp:
+                coin_list_cache = await resp.json()
+                logger.warning(f"[DEBUG] all_coins cached (partial): {str(coin_list_cache)[:500]}")
+    all_coins = coin_list_cache
             logger.warning(f"[DEBUG] all_coins (partial): {str(all_coins)[:500]}")
             if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
                 await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")

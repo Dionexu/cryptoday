@@ -1,4 +1,4 @@
-...весь поточний код збережено...
+
 
 async def on_startup(bot_instance: Bot):
     await bot_instance.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)

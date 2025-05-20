@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import logging
 from aiohttp import web
@@ -35,87 +36,50 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
 
+dp.include_router(router)
+
 user_settings = {}
-coin_list_cache = [
-    {"id": "bitcoin", "symbol": "btc", "name": "Bitcoin"},
-    {"id": "ethereum", "symbol": "eth", "name": "Ethereum"},
-    {"id": "solana", "symbol": "sol", "name": "Solana"},
-    {"id": "dogecoin", "symbol": "doge", "name": "Dogecoin"},
-    {"id": "toncoin", "symbol": "ton", "name": "Toncoin"}
-]
+coin_list_cache = None
 
-@router.callback_query(F.data == "select_frequency")
-async def ask_frequency(callback: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Щогодини", callback_data="freq_1h")],
-        [InlineKeyboardButton(text="Кожні 2 години", callback_data="freq_2h")],
-        [InlineKeyboardButton(text="2 рази на день", callback_data="freq_12h")],
-        [InlineKeyboardButton(text="1 раз на день", callback_data="freq_24h")]
-    ])
-    await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("freq_"))
-async def handle_frequency(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    freq = callback.data.replace("freq_", "")
-
-    if freq not in ["1h", "2h", "12h", "24h"]:
-        await callback.message.answer("❌ Невірне значення частоти.")
-        return
-
-    user_data = user_settings.setdefault(user_id, {})
-    user_data["frequency"] = freq
-
-    if freq in ["12h", "24h"]:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="08:00", callback_data="time_08:00"),
-             InlineKeyboardButton(text="12:00", callback_data="time_12:00")],
-            [InlineKeyboardButton(text="16:00", callback_data="time_16:00"),
-             InlineKeyboardButton(text="20:00", callback_data="time_20:00")]
-        ])
-        await callback.message.answer("🕐 Оберіть перший час розсилки (UTC):", reply_markup=keyboard)
-    else:
-        await callback.message.answer(f"✅ Частоту встановлено: {freq}")
-
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith("time_"))
-async def handle_time(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    time_val = callback.data.replace("time_", "")
-    user_data = user_settings.setdefault(user_id, {})
-
-    if "time" not in user_data:
-        user_data["time"] = time_val
-        freq = user_data.get("frequency")
-
-        if freq == "12h":
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="08:00", callback_data="time2_08:00"),
-                 InlineKeyboardButton(text="12:00", callback_data="time2_12:00")],
-                [InlineKeyboardButton(text="16:00", callback_data="time2_16:00"),
-                 InlineKeyboardButton(text="20:00", callback_data="time2_20:00")]
-            ])
-            await callback.message.answer("🕑 Оберіть другий час розсилки (UTC):", reply_markup=keyboard)
+async def load_coin_list():
+    global coin_list_cache
+    try:
+        if os.path.exists("coin_list.json"):
+            with open("coin_list.json", "r") as f:
+                coin_list_cache = json.load(f)
+                logger.info("✅ Coin list loaded from file")
         else:
-            await callback.message.answer(f"✅ Час встановлено: {time_val}")
-    else:
-        await callback.message.answer("⚠️ Час уже встановлено. Якщо хочете змінити — скиньте налаштування.")
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.coingecko.com/api/v3/coins/list"
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"CoinGecko API error: {resp.status}")
+                        return
+                    coin_list_cache = await resp.json()
+                    with open("coin_list.json", "w") as f:
+                        json.dump(coin_list_cache, f)
+                    logger.info("✅ Coin list saved to file")
+    except Exception as e:
+        logger.error(f"❌ Error loading coin list: {e}")
 
-    await callback.answer()
 
-
-@router.callback_query(F.data.startswith("time2_"))
-async def handle_second_time(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    second_time = callback.data.replace("time2_", "")
-    user_data = user_settings.setdefault(user_id, {})
-    user_data["second_time"] = second_time
-
-    await callback.message.answer(f"✅ Другий час встановлено: {second_time}")
+@router.callback_query(F.data == "refresh_coin_list")
+async def refresh_coin_list(callback: types.CallbackQuery):
+    global coin_list_cache
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.coingecko.com/api/v3/coins/list"
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    await callback.message.answer("❌ Не вдалося оновити список монет.")
+                    return
+                coin_list_cache = await resp.json()
+                with open("coin_list.json", "w") as f:
+                    json.dump(coin_list_cache, f)
+                await callback.message.answer("🔁 Список монет оновлено!")
+    except Exception as e:
+        logger.error(f"❌ Error refreshing coin list: {e}")
+        await callback.message.answer("❌ Сталася помилка під час оновлення.")
     await callback.answer()
 
 
@@ -124,7 +88,13 @@ async def ask_coin_selection(callback: types.CallbackQuery):
     user_data = user_settings.setdefault(callback.from_user.id, {})
     user_data["coins"] = []
     user_data["mode"] = "selecting_coins"
-    await callback.message.answer("Введіть назву або ID монети англійською (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите вибір.")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔁 Оновити список монет", callback_data="refresh_coin_list")]
+    ])
+    await callback.message.answer(
+        "Введіть назву або ID монети англійською (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите вибір.",
+        reply_markup=keyboard
+    )
     await callback.answer()
 
 
@@ -139,6 +109,18 @@ async def handle_reset(callback: types.CallbackQuery):
     ])
     await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
     await callback.answer()
+
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
+    logger.info(f"✅ Received /start from user {message.from_user.id}")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
+        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
+    ])
+    await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
 
 @router.message()
@@ -163,20 +145,12 @@ async def handle_coin_text(message: types.Message):
 
     try:
         if coin_list_cache is None:
-            async with aiohttp.ClientSession() as session:
-                url = "https://api.coingecko.com/api/v3/coins/list"
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        logger.warning(f"CoinGecko API error: {resp.status}")
-                        await message.answer("❌ CoinGecko зараз недоступний. Спробуйте пізніше.")
-                        return
-                    coin_list_cache = await resp.json()
+            await load_coin_list()
+            if coin_list_cache is None:
+                await message.answer("❌ CoinGecko недоступний. Спробуйте пізніше.")
+                return
 
         all_coins = coin_list_cache
-        if not isinstance(all_coins, list) or not all(isinstance(c, dict) for c in all_coins):
-            await message.answer("❌ Помилка отримання списку монет. Спробуйте пізніше.")
-            return
-
         id_map = {c['id']: c['id'] for c in all_coins}
         symbol_map = {c['symbol']: c['id'] for c in all_coins}
         valid_ids = set(id_map.keys()).union(symbol_map.keys())
@@ -206,41 +180,8 @@ async def handle_coin_text(message: types.Message):
         await message.answer("❌ Сталася помилка. Спробуйте ще раз пізніше.")
 
 
-@router.callback_query(F.data == "get_prices")
-async def handle_prices(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:\n"
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = "https://api.coingecko.com/api/v3/simple/price"
-                params = {"ids": coin, "vs_currencies": "usd"}
-                async with session.get(url, params=params) as resp:
-                    data = await resp.json()
-                    price = data.get(coin, {}).get("usd")
-                    if price:
-                        text += f"{coin.capitalize()}: ${price}\n"
-        await callback.message.answer(text.strip())
-    except Exception as e:
-        logger.warning(f"❌ Помилка отримання цін: {e}")
-        await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
-
-
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    logger.info(f"✅ Received /start from user {message.from_user.id}")
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
-        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
-        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
-        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
-    ])
-    await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
-
-
 async def on_startup(app):
+    await load_coin_list()
     await bot.set_webhook(WEBHOOK_URL)
 
 async def on_shutdown(app):
@@ -252,7 +193,6 @@ app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-dp.include_router(router)
 setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":

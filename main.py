@@ -39,11 +39,19 @@ dp.include_router(router)
 user_settings = {}
 
 
+@router.callback_query(F.data == "reset_settings")
+async def handle_reset(callback: types.CallbackQuery):
+    user_settings.pop(callback.from_user.id, None)
+    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново командою /start або обрати монети.")
+    await callback.answer()
+
+
 @router.callback_query(F.data == "get_prices")
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:"
+    text = "📈 Поточні ціни:
+"
     try:
         async with aiohttp.ClientSession() as session:
             for coin in coins:
@@ -53,7 +61,8 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price:
-                        text += f"{coin.capitalize()}: ${price}"
+                        text += f"{coin.capitalize()}: ${price}
+"
         await callback.message.answer(text.strip())
     except Exception as e:
         await callback.message.answer("❌ Помилка при отриманні даних.")
@@ -120,7 +129,8 @@ async def handle_coin_text(message: types.Message):
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Дивитися ціни", callback_data="get_prices")],
-        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")]
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
     ])
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 

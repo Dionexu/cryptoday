@@ -29,7 +29,8 @@ if not WEBHOOK_HOST.startswith(("http://", "https://")):
 
 WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-PORT = int(os.getenv("PORT", "3000"))
+PORT = int(os.environ["PORT"])
+print(f"🚀 Starting on port {PORT}")
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()

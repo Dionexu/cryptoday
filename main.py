@@ -192,8 +192,7 @@ async def handle_coin_text(message: types.Message):
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
-    text = "📈 Поточні ціни:
-"
+    text = "📈 Поточні ціни:\n"
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -204,7 +203,7 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price:
-                        text += f"{coin.capitalize()}: ${price}
+                        text += f"{coin.capitalize()}: ${price}\n"
 "
         await callback.message.answer(text.strip())
     except Exception as e:
@@ -212,7 +211,8 @@ async def handle_prices(callback: types.CallbackQuery):
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
 
 
-@router.message(Command("start"))(message: types.Message):
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
         [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],

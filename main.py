@@ -227,9 +227,9 @@ async def healthcheck(request):
 
 async def main():
     app = web.Application()
-        webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     app.router.add_route("POST", WEBHOOK_PATH, webhook_handler.handle)
-            setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
     app.router.add_get("/", healthcheck)
 
     runner = web.AppRunner(app)

@@ -114,7 +114,7 @@ async def handle_prices(callback: types.CallbackQuery):
     try:
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/simple/price"
-            ids_param = ",".join(coins)  # Fixed line
+            ids_param = ",".join(coins)
             full_url = f"{url}?ids={ids_param}&vs_currencies=usd"
             async with session.get(full_url) as resp:
                 data = await resp.json()
@@ -131,6 +131,7 @@ async def handle_prices(callback: types.CallbackQuery):
     await callback.answer()
 
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)  # Додаємо очищення webhook
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

@@ -104,21 +104,21 @@ async def handle_prices(callback: types.CallbackQuery):
     text = "📈 Поточні ціни:\n"
     try:
         async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd"
-                try:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            raise Exception(f"Bad response: {resp.status}")
-                        data = await resp.json()
-                        price = data.get(coin, {}).get("usd")
-                        if price is not None:
-                            text += f"{coin.capitalize()}: ${price}\n"
-                        else:
-                            text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
-                except Exception as e:
-                    logger.warning(f"Помилка з монетою {coin}: {e}")
-                    text += f"{coin.capitalize()}: ❌ Помилка отримання даних\n"
+            url = "https://api.coingecko.com/api/v3/simple/price"
+            params = {
+                "ids": ",".join(coins),
+                "vs_currencies": "usd"
+            }
+            async with session.get(url, params=params) as resp:
+                if resp.status != 200:
+                    raise Exception(f"Bad response: {resp.status}")
+                data = await resp.json()
+                for coin in coins:
+                    price = data.get(coin, {}).get("usd")
+                    if price is not None:
+                        text += f"{coin.capitalize()}: ${price}\n"
+                    else:
+                        text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")

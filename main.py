@@ -1,7 +1,6 @@
 import os
 import logging
 import aiohttp
-from urllib.parse import quote
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -115,7 +114,7 @@ async def handle_prices(callback: types.CallbackQuery):
     try:
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/simple/price"
-            ids_param = quote(",".join(coins))
+            ids_param = ",".join(coins)  # Fixed line
             full_url = f"{url}?ids={ids_param}&vs_currencies=usd"
             async with session.get(full_url) as resp:
                 data = await resp.json()

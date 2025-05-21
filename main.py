@@ -52,67 +52,76 @@ async def cmd_start(message: types.Message):
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
 
-@router.callback_query()
-async def universal_callback_handler(callback: types.CallbackQuery):
-    data = callback.data
+@router.callback_query(F.data == "reset_settings")
+async def handle_reset(callback: types.CallbackQuery):
+    user_settings[callback.from_user.id] = {}
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
+        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
+        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
+        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
+    ])
+    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "select_coins")
+async def ask_coin_selection(callback: types.CallbackQuery):
+    user_data = user_settings.setdefault(callback.from_user.id, {})
+    user_data["coins"] = []
+    user_data["mode"] = "selecting_coins"
+    await callback.message.answer("Введіть назву або ID монети (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите.")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "select_frequency")
+async def ask_frequency(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Щогодини", callback_data="freq_1h")],
+        [InlineKeyboardButton(text="Кожні 2 години", callback_data="freq_2h")],
+        [InlineKeyboardButton(text="2 рази на день", callback_data="freq_12h")],
+        [InlineKeyboardButton(text="1 раз на день", callback_data="freq_24h")]
+    ])
+    await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("freq_"))
+async def handle_frequency(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    freq = callback.data.replace("freq_", "")
     user_data = user_settings.setdefault(user_id, {})
+    user_data["frequency"] = freq
+    await callback.message.answer(f"✅ Частоту встановлено: {freq}")
+    await callback.answer()
 
-    if data == "reset_settings":
-        user_settings[user_id] = {}
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
-            [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
-            [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
-            [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
-        ])
-        await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
 
-    elif data == "select_coins":
-        user_data["coins"] = []
-        user_data["mode"] = "selecting_coins"
-        await callback.message.answer("Введіть назву або ID монети (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите.")
-
-    elif data == "select_frequency":
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Щогодини", callback_data="freq_1h")],
-            [InlineKeyboardButton(text="Кожні 2 години", callback_data="freq_2h")],
-            [InlineKeyboardButton(text="2 рази на день", callback_data="freq_12h")],
-            [InlineKeyboardButton(text="1 раз на день", callback_data="freq_24h")]
-        ])
-        await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
-
-    elif data.startswith("freq_"):
-        freq = data.replace("freq_", "")
-        user_data["frequency"] = freq
-        await callback.message.answer(f"✅ Частоту встановлено: {freq}")
-
-    elif data == "get_prices":
-        coins = user_data.get("coins", ["bitcoin", "ethereum"])
-        text = "📈 Поточні ціни:\n"
-        try:
-            async with aiohttp.ClientSession() as session:
-                for coin in coins:
-                    url = "https://api.coingecko.com/api/v3/simple/price"
-                    params = {"ids": coin, "vs_currencies": "usd"}
-                    try:
-                        async with session.get(url, params=params) as resp:
-                            if resp.status != 200:
-                                raise Exception(f"Bad response: {resp.status}")
-                            data = await resp.json()
-                            price = data.get(coin, {}).get("usd")
-                            if price is not None:
-                                text += f"{coin.capitalize()}: ${price}\n"
-                            else:
-                                text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
-                    except Exception as e:
-                        logger.warning(f"Помилка з монетою {coin}: {e}")
-                        text += f"{coin.capitalize()}: ❌ Помилка отримання даних\n"
-            await callback.message.answer(text.strip())
-        except Exception as e:
-            logger.warning(f"❌ Помилка отримання цін: {e}")
-            await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
-
+@router.callback_query(F.data == "get_prices")
+async def handle_prices(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    coins = user_settings.get(user_id, {}).get("coins", ["bitcoin", "ethereum"])
+    text = "📈 Поточні ціни:\n"
+    try:
+        async with aiohttp.ClientSession() as session:
+            for coin in coins:
+                url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd"
+                try:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            raise Exception(f"Bad response: {resp.status}")
+                        data = await resp.json()
+                        price = data.get(coin, {}).get("usd")
+                        if price is not None:
+                            text += f"{coin.capitalize()}: ${price}\n"
+                        else:
+                            text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
+                except Exception as e:
+                    logger.warning(f"Помилка з монетою {coin}: {e}")
+                    text += f"{coin.capitalize()}: ❌ Помилка отримання даних\n"
+        await callback.message.answer(text.strip())
+    except Exception as e:
+        logger.warning(f"❌ Помилка отримання цін: {e}")
+        await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
     await callback.answer()
 
 

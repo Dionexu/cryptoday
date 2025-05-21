@@ -100,7 +100,7 @@ async def handle_prices(callback: types.CallbackQuery):
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
     await callback.answer()
 
-@router.message()
+@router.message(F.text)
 async def handle_coin_input(message: types.Message):
     user_id = message.from_user.id
     user_data = user_settings.setdefault(user_id, {})

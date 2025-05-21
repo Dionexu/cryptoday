@@ -3,7 +3,6 @@ import json
 import asyncio
 import logging
 from aiohttp import web
-from datetime import datetime, timedelta
 import aiohttp
 
 from aiogram import Bot, Dispatcher, Router, types, F
@@ -17,20 +16,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+PORT = int(os.environ.get("PORT", 8080))
+
 if not TOKEN:
     raise RuntimeError("No BOT_TOKEN provided.")
-
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 if not WEBHOOK_HOST:
     raise RuntimeError("No WEBHOOK_HOST provided.")
-
 if not WEBHOOK_HOST.startswith(("http://", "https://")):
     WEBHOOK_HOST = "https://" + WEBHOOK_HOST
 
 WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-PORT = int(os.environ.get("PORT", 8080))
-print(f"🚀 Starting on port {PORT}")
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
@@ -51,19 +48,11 @@ async def cmd_start(message: types.Message):
     ])
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "reset_settings")
 async def handle_reset(callback: types.CallbackQuery):
     user_settings[callback.from_user.id] = {}
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
-        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
-        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
-        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
-    ])
-    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
+    await cmd_start(callback.message)
     await callback.answer()
-
 
 @router.callback_query(F.data == "select_coins")
 async def ask_coin_selection(callback: types.CallbackQuery):
@@ -72,7 +61,6 @@ async def ask_coin_selection(callback: types.CallbackQuery):
     user_data["mode"] = "selecting_coins"
     await callback.message.answer("Введіть назву або ID монети (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите.")
     await callback.answer()
-
 
 @router.callback_query(F.data == "select_frequency")
 async def ask_frequency(callback: types.CallbackQuery):
@@ -85,16 +73,12 @@ async def ask_frequency(callback: types.CallbackQuery):
     await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
     await callback.answer()
 
-
 @router.callback_query(F.data.startswith("freq_"))
 async def handle_frequency(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    freq = callback.data.replace("freq_", "")
-    user_data = user_settings.setdefault(user_id, {})
-    user_data["frequency"] = freq
-    await callback.message.answer(f"✅ Частоту встановлено: {freq}")
+    user_data = user_settings.setdefault(callback.from_user.id, {})
+    user_data["frequency"] = callback.data.replace("freq_", "")
+    await callback.message.answer(f"✅ Частоту встановлено: {user_data['frequency']}")
     await callback.answer()
-
 
 @router.callback_query(F.data == "get_prices")
 async def handle_prices(callback: types.CallbackQuery):
@@ -108,7 +92,7 @@ async def handle_prices(callback: types.CallbackQuery):
             async with session.get(url, params=params) as resp:
                 data = await resp.json()
                 for coin in coins:
-                    price = data.get(coin, {}).get("usd")
+                    price = data.get(coin.lower(), {}).get("usd")
                     if price is not None:
                         text += f"{coin.capitalize()}: ${price}\n"
                     else:
@@ -118,7 +102,6 @@ async def handle_prices(callback: types.CallbackQuery):
         logger.warning(f"❌ Помилка отримання цін: {e}")
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
     await callback.answer()
-
 
 @router.message()
 async def handle_coin_input(message: types.Message):
@@ -162,13 +145,12 @@ async def handle_coin_input(message: types.Message):
     else:
         coins.append(coin_id)
         await message.answer(f"✅ Додано монету: <b>{coin_symbol.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
-        logger.info(f"User {user_id} added coin: {coin_id}")
 
+app = web.Application()
+app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
+app.on_shutdown.append(lambda app: bot.session.close())
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":
-    app = web.Application()
-    app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
-    app.on_shutdown.append(lambda app: bot.session.close())
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-    setup_application(app, dp, bot=bot)
     web.run_app(app, host="0.0.0.0", port=PORT)

@@ -40,6 +40,7 @@ dp.include_router(router)
 
 user_settings = {}
 coin_list_cache = None
+symbol_to_id_map = {}
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -139,23 +140,17 @@ async def handle_coin_input(message: types.Message):
         await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
         return
 
-    global coin_list_cache
+    global coin_list_cache, symbol_to_id_map
     if not coin_list_cache:
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
+                symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
 
-    coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
-    id_map = {c['id']: c['id'] for c in coin_list_cache}
+    coin_id = symbol_to_id_map.get(coin_input)
 
-    if coin_input in coin_map:
-        coin_id = coin_map[coin_input]
-        coin_symbol = coin_input
-    elif coin_input in id_map:
-        coin_id = coin_input
-        coin_symbol = coin_input
-    else:
+    if not coin_id:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
         return
 
@@ -166,8 +161,7 @@ async def handle_coin_input(message: types.Message):
         await message.answer("⚠️ Можна обрати максимум 5 монет.")
     else:
         coins.append(coin_id)
-        await message.answer(f"✅ Додано монету: <b>{coin_symbol.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
-        await message.answer(f"✅ Додано монету: <b>{coin_input}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
+        await message.answer(f"✅ Додано монету: <b>{coin_input.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
 
 
 if __name__ == "__main__":

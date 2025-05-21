@@ -29,7 +29,7 @@ if not WEBHOOK_HOST.startswith(("http://", "https://")):
 
 WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-PORT = int(os.environ["PORT"])
+PORT = int(os.environ.get("PORT", 8080))
 print(f"🚀 Starting on port {PORT}")
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
@@ -141,18 +141,14 @@ async def handle_coin_input(message: types.Message):
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
 
-    coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
-    id_map = {c['id']: c['id'] for c in coin_list_cache}
-
     coin_id = None
     coin_symbol = None
 
-    if coin_input in coin_map:
-        coin_id = coin_map[coin_input]
-        coin_symbol = coin_input
-    elif coin_input in id_map:
-        coin_id = id_map[coin_input]
-        coin_symbol = coin_input
+    for coin in coin_list_cache:
+        if coin_input == coin['symbol'].lower() or coin_input == coin['id']:
+            coin_id = coin['id']
+            coin_symbol = coin['symbol']
+            break
 
     if not coin_id:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")

@@ -142,63 +142,6 @@ async def handle_coin_input(message: types.Message):
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
 
-    # Пошук монет за частковим збігом
-    matches = [c for c in coin_list_cache if coin_input in c['id'] or coin_input in c['symbol'] or coin_input in c['name'].lower()]
-    if not matches:
-        await message.answer("❌ Монету не знайдено. Спробуйте ще раз.")
-        return
-
-    # Якщо одна — додаємо одразу
-    if len(matches) == 1:
-        coin = matches[0]
-        coin_id = coin['id']
-        coins = user_data.setdefault("coins", [])
-        if coin_id in coins:
-            await message.answer("ℹ️ Цю монету вже додано.")
-        elif len(coins) >= 5:
-            await message.answer("⚠️ Можна обрати максимум 5 монет.")
-        else:
-            coins.append(coin_id)
-            await message.answer(f"✅ Додано монету: <b>{coin['name']}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
-        return
-
-    # Якщо декілька — пропонуємо вибрати
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{c['name']} ({c['symbol']})", callback_data=f"addcoin_{c['id']}")] for c in matches[:10]
-    ])
-    await message.answer("🔍 Знайдено кілька монет. Оберіть одну:", reply_markup=keyboard)
-
-
-@router.callback_query(F.data.startswith("addcoin_"))
-async def handle_coin_selection(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    coin_id = callback.data.replace("addcoin_", "")
-    user_data = user_settings.setdefault(user_id, {})
-    coins = user_data.setdefault("coins", [])
-    if coin_id in coins:
-        await callback.message.answer("ℹ️ Цю монету вже додано.")
-    elif len(coins) >= 5:
-        await callback.message.answer("⚠️ Можна обрати максимум 5 монет.")
-    else:
-        coins.append(coin_id)
-        await callback.message.answer(f"✅ Монету <b>{coin_id}</b> додано! ({len(coins)}/5)", parse_mode=ParseMode.HTML)
-    await callback.answer()
-
-    coin_input = message.text.lower().strip()
-
-    if coin_input == "готово":
-        user_data["mode"] = None
-        await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
-        return
-
-    # Завантаження списку монет з CoinGecko (кешування)
-    global coin_list_cache
-    if not coin_list_cache:
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.coingecko.com/api/v3/coins/list"
-            async with session.get(url) as resp:
-                coin_list_cache = await resp.json()
-
     # Пошук валідного ID за символом або ID
     coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
     id_map = {c['id']: c['id'] for c in coin_list_cache}

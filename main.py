@@ -102,9 +102,12 @@ async def handle_prices(callback: types.CallbackQuery):
 
 @router.message(F.text)
 async def handle_coin_input(message: types.Message):
+    logger.info(f"[coin_input] got message: {message.text} from {message.from_user.id}")
     user_id = message.from_user.id
     user_data = user_settings.setdefault(user_id, {})
+
     if user_data.get("mode") != "selecting_coins":
+        logger.info("[coin_input] skipping: not in selecting mode")
         return
 
     coin_input = message.text.lower().strip()
@@ -116,6 +119,7 @@ async def handle_coin_input(message: types.Message):
 
     global coin_list_cache
     if not coin_list_cache:
+        logger.info("[coin_input] loading coin list from CoinGecko")
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
@@ -124,6 +128,7 @@ async def handle_coin_input(message: types.Message):
     matched_coin = next((c for c in coin_list_cache if coin_input == c['id'] or coin_input == c['symbol'].lower()), None)
 
     if not matched_coin:
+        logger.info(f"[coin_input] coin not found for input: {coin_input}")
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
         return
 
@@ -138,6 +143,7 @@ async def handle_coin_input(message: types.Message):
     else:
         coins.append(coin_id)
         await message.answer(f"✅ Додано монету: <b>{coin_symbol.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
+        logger.info(f"[coin_input] coin added: {coin_id}")
 
 # Webhook setup
 app = web.Application()

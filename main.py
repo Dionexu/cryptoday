@@ -1,30 +1,19 @@
 import os
 import logging
 import aiohttp
-from aiohttp import web
 from urllib.parse import quote
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
-PORT = int(os.environ.get("PORT", 8080))
-
 if not TOKEN:
     raise RuntimeError("No BOT_TOKEN provided.")
-if not WEBHOOK_HOST:
-    raise RuntimeError("No WEBHOOK_HOST provided.")
-if not WEBHOOK_HOST.startswith(("http://", "https://")):
-    WEBHOOK_HOST = "https://" + WEBHOOK_HOST
-
-WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
@@ -142,11 +131,8 @@ async def handle_prices(callback: types.CallbackQuery):
         logging.warning(e)
     await callback.answer()
 
-app = web.Application()
-app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
-app.on_shutdown.append(lambda app: bot.session.close())
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-setup_application(app, dp, bot=bot)
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=PORT)
+    asyncio.run(main())

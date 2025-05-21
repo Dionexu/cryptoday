@@ -132,7 +132,7 @@ async def handle_prices(callback: types.CallbackQuery):
                 data = await resp.json()
                 for coin in coins:
                     price = data.get(coin.lower(), {}).get("usd")
-                    if price:
+                    if price is not None:
                         text += f"{coin.capitalize()}: ${price}\n"
                     else:
                         text += f"{coin.capitalize()}: ⚠️ Немає даних\n"

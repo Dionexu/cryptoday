@@ -110,9 +110,9 @@ async def handle_prices(callback: types.CallbackQuery):
                     data = await resp.json()
                     price = data.get(coin, {}).get("usd")
                     if price is not None:
-                        text += f"{coin.capitalize()}: ${price}"
+                        text += f"{coin.capitalize()}: ${price}\n"
                     else:
-                        text += f"{coin.capitalize()}: ⚠️ Немає даних"
+                        text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")
@@ -134,7 +134,6 @@ async def handle_coin_input(message: types.Message):
         await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
         return
 
-    # Завантаження списку монет з CoinGecko (кешування)
     global coin_list_cache
     if not coin_list_cache:
         async with aiohttp.ClientSession() as session:
@@ -142,7 +141,6 @@ async def handle_coin_input(message: types.Message):
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
 
-    # Пошук валідного ID за символом або ID
     coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
     id_map = {c['id']: c['id'] for c in coin_list_cache}
 
@@ -164,10 +162,8 @@ async def handle_coin_input(message: types.Message):
     else:
         coins.append(coin_id)
         await message.answer(f"✅ Додано монету: <b>{coin_symbol.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
-        await message.answer(f"✅ Додано монету: <b>{coin}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
 
 
-# === Run server ===
 if __name__ == "__main__":
     app = web.Application()
     app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))

@@ -144,13 +144,17 @@ async def handle_coin_input(message: types.Message):
     coin_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
     id_map = {c['id']: c['id'] for c in coin_list_cache}
 
+    coin_id = None
+    coin_symbol = None
+
     if coin_input in coin_map:
         coin_id = coin_map[coin_input]
         coin_symbol = coin_input
     elif coin_input in id_map:
-        coin_id = coin_input
+        coin_id = id_map[coin_input]
         coin_symbol = coin_input
-    else:
+
+    if not coin_id:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
         return
 
@@ -162,6 +166,7 @@ async def handle_coin_input(message: types.Message):
     else:
         coins.append(coin_id)
         await message.answer(f"✅ Додано монету: <b>{coin_symbol.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
+        logger.info(f"User {user_id} added coin: {coin_id}")
 
 
 if __name__ == "__main__":

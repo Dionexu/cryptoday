@@ -59,7 +59,7 @@ async def ask_coin_selection(callback: types.CallbackQuery):
     await callback.message.answer("Введіть назву або ID монети. Наприклад: bitcoin, solana, dogecoin. Напишіть 'готово' для завершення.")
     await callback.answer()
 
-@router.message(F.text)
+@router.message()
 async def handle_coin_input(message: types.Message):
     user_id = message.from_user.id
     user_data = user_settings.setdefault(user_id, {})

@@ -33,6 +33,20 @@ PORT = int(os.environ["PORT"])
 print(f"🚀 Starting on port {PORT}")
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
+
+async def load_coin_list():
+    global coin_list_cache
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.coingecko.com/api/v3/coins/list"
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    coin_list_cache = await resp.json()
+                    print(f"✅ Coin list loaded. Total: {len(coin_list_cache)} coins.")
+                else:
+                    print(f"⚠️ Failed to load coin list. Status: {resp.status}")
+    except Exception as e:
+        print(f"⚠️ Error loading coin list: {e}")
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
@@ -82,13 +96,8 @@ async def handle_coin_input(message: types.Message):
 
     global coin_list_cache, symbol_to_id_map
     if not coin_list_cache:
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.coingecko.com/api/v3/coins/list"
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    await message.answer("❌ Не вдалося завантажити список монет. Спробуйте пізніше.")
-                    return
-                coin_list_cache = await resp.json()
+        await message.answer("⚠️ Список монет ще не завантажено. Спробуйте ще раз через кілька секунд або введіть /start.")
+        return
 
     query = coin_input.lower()
     matches = [coin for coin in coin_list_cache if query in coin['id'].lower() or query in coin['symbol'].lower()]
@@ -166,6 +175,7 @@ async def handle_prices(callback: types.CallbackQuery):
 if __name__ == "__main__":
     app = web.Application()
     app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
+    app.on_startup.append(lambda app: load_coin_list())
     app.on_shutdown.append(lambda app: bot.session.close())
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)

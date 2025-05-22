@@ -85,6 +85,9 @@ async def handle_coin_input(message: types.Message):
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
+                if resp.status != 200:
+                    await message.answer("❌ Не вдалося завантажити список монет. Спробуйте пізніше.")
+                    return
                 coin_list_cache = await resp.json()
 
     query = coin_input.lower()

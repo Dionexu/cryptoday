@@ -178,7 +178,7 @@ async def handle_prices(callback: types.CallbackQuery):
 if __name__ == "__main__":
     app = web.Application()
     app.on_startup.append(lambda app: bot.set_webhook(WEBHOOK_URL))
-    app.on_startup.append(lambda app: load_coin_list())
+    app.on_startup.append(lambda app: asyncio.create_task(load_coin_list()))
     app.on_shutdown.append(lambda app: bot.session.close())
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)

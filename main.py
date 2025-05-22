@@ -126,7 +126,7 @@ async def handle_prices(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.message()
+@router.message(F.text)
 async def handle_coin_input(message: types.Message):
     user_id = message.from_user.id
     user_data = user_settings.setdefault(user_id, {})
@@ -147,6 +147,7 @@ async def handle_coin_input(message: types.Message):
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
                 symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
+                symbol_to_id_map.update({c['id'].lower(): c['id'] for c in coin_list_cache})
 
     coin_id = symbol_to_id_map.get(coin_input)
 
@@ -161,7 +162,7 @@ async def handle_coin_input(message: types.Message):
         await message.answer("⚠️ Можна обрати максимум 3 монети.")
     else:
         coins.append(coin_id)
-        await message.answer(f"✅ Додано монету: <b>{coin_input.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
+        await message.answer(f"✅ Додано монету: <b>{coin_input.upper()}</b> ({len(coins)}/3)", parse_mode=ParseMode.HTML)
 
 
 if __name__ == "__main__":

@@ -41,7 +41,6 @@ dp.include_router(router)
 user_settings = {}
 coin_list_cache = None
 symbol_to_id_map = {}
-id_to_name_map = {}
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -105,22 +104,21 @@ async def handle_prices(callback: types.CallbackQuery):
     text = "📈 Поточні ціни:\n"
     try:
         async with aiohttp.ClientSession() as session:
-            url = "https://api.coingecko.com/api/v3/simple/price"
-            params = {
-                "ids": ",".join(coins),
-                "vs_currencies": "usd"
-            }
-            async with session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    raise Exception(f"Bad response: {resp.status}")
-                data = await resp.json()
-                for coin in coins:
-                    price = data.get(coin, {}).get("usd")
-                    name = id_to_name_map.get(coin, coin)
-                    if price is not None:
-                        text += f"{name.capitalize()}: ${price}\n"
-                    else:
-                        text += f"{name.capitalize()}: ⚠️ Немає даних\n"
+            for coin in coins:
+                url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd"
+                try:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            raise Exception(f"Bad response: {resp.status}")
+                        data = await resp.json()
+                        price = data.get(coin, {}).get("usd")
+                        if price is not None:
+                            text += f"{coin.capitalize()}: ${price}\n"
+                        else:
+                            text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
+                except Exception as e:
+                    logger.warning(f"Помилка з монетою {coin}: {e}")
+                    text += f"{coin.capitalize()}: ❌ Помилка отримання даних\n"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")
@@ -142,14 +140,13 @@ async def handle_coin_input(message: types.Message):
         await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
         return
 
-    global coin_list_cache, symbol_to_id_map, id_to_name_map
+    global coin_list_cache, symbol_to_id_map
     if not coin_list_cache:
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
-        symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
-        id_to_name_map = {c['id']: c['name'] for c in coin_list_cache}
+                symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
 
     coin_id = symbol_to_id_map.get(coin_input)
 
@@ -160,12 +157,11 @@ async def handle_coin_input(message: types.Message):
     coins = user_data.setdefault("coins", [])
     if coin_id in coins:
         await message.answer("ℹ️ Цю монету вже додано.")
-    elif len(coins) >= 5:
-        await message.answer("⚠️ Можна обрати максимум 5 монет.")
+    elif len(coins) >= 3:
+        await message.answer("⚠️ Можна обрати максимум 3 монети.")
     else:
         coins.append(coin_id)
-        name = id_to_name_map.get(coin_id, coin_input)
-        await message.answer(f"✅ Додано монету: <b>{name}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
+        await message.answer(f"✅ Додано монету: <b>{coin_input.upper()}</b> ({len(coins)}/5)", parse_mode=ParseMode.HTML)
 
 
 if __name__ == "__main__":

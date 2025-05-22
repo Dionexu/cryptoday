@@ -100,7 +100,10 @@ async def handle_coin_input(message: types.Message):
         return
 
     query = coin_input.lower()
-    matches = [coin for coin in coin_list_cache if query in coin['id'].lower() or query in coin['symbol'].lower()]
+    matches = [
+    coin for coin in coin_list_cache
+    if (query in coin['id'].lower() or query in coin['symbol'].lower()) and not any(x in coin['id'] for x in ['wrapped', 'amm', 'pool', 'bpt', 'tokenized', 'wormhole', 'peg'])
+]
 
     if not matches:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")

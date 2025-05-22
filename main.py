@@ -52,19 +52,12 @@ async def cmd_start(message: types.Message):
     ])
     await message.answer("Привіт! Натисни кнопку нижче, щоб отримати ціни.", reply_markup=keyboard)
 
-
 @router.callback_query(F.data == "reset_settings")
 async def handle_reset(callback: types.CallbackQuery):
     user_settings[callback.from_user.id] = {}
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🕒 Обрати частоту", callback_data="select_frequency")],
-        [InlineKeyboardButton(text="📈 Дивитися ціни", callback_data="get_prices")],
-        [InlineKeyboardButton(text="⚙️ Обрати монети", callback_data="select_coins")],
-        [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings")]
-    ])
-    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:", reply_markup=keyboard)
+    await callback.message.answer("🔄 Налаштування скинуто. Ви можете почати заново:")
+    await cmd_start(callback.message)
     await callback.answer()
-
 
 @router.callback_query(F.data == "select_coins")
 async def ask_coin_selection(callback: types.CallbackQuery):
@@ -74,6 +67,53 @@ async def ask_coin_selection(callback: types.CallbackQuery):
     await callback.message.answer("Введіть назву або ID монети (наприклад, bitcoin, solana, dogecoin). Введіть 'готово', коли завершите.")
     await callback.answer()
 
+@router.message()
+async def handle_coin_input(message: types.Message):
+    user_id = message.from_user.id
+    user_data = user_settings.setdefault(user_id, {})
+    if user_data.get("mode") != "selecting_coins":
+        return
+
+    coin_input = message.text.lower().strip()
+    if coin_input == "готово":
+        user_data["mode"] = None
+        await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
+        return
+
+    global coin_list_cache, symbol_to_id_map
+    if not coin_list_cache:
+        async with aiohttp.ClientSession() as session:
+            url = "https://api.coingecko.com/api/v3/coins/list"
+            async with session.get(url) as resp:
+                coin_list_cache = await resp.json()
+
+    query = coin_input.lower()
+    matches = [coin for coin in coin_list_cache if query in coin['id'].lower() or query in coin['symbol'].lower()]
+
+    if not matches:
+        await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
+        return
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{c['name']} ({c['symbol'].upper()})", callback_data=f"coin_{c['id']}")]
+        for c in matches[:5]
+    ])
+    await message.answer("🔎 Знайдено монети. Оберіть одну:", reply_markup=keyboard)
+
+@router.callback_query(F.data.startswith("coin_"))
+async def select_coin(callback: types.CallbackQuery):
+    coin_id = callback.data.replace("coin_", "")
+    user_data = user_settings.setdefault(callback.from_user.id, {})
+    coins = user_data.setdefault("coins", [])
+
+    if coin_id in coins:
+        await callback.message.answer("ℹ️ Цю монету вже додано.")
+    elif len(coins) >= 3:
+        await callback.message.answer("⚠️ Можна обрати максимум 3 монети.")
+    else:
+        coins.append(coin_id)
+        await callback.message.answer(f"✅ Додано монету: <b>{coin_id.upper()}</b> ({len(coins)}/3)", parse_mode=ParseMode.HTML)
+    await callback.answer()
 
 @router.callback_query(F.data == "select_frequency")
 async def ask_frequency(callback: types.CallbackQuery):
@@ -86,7 +126,6 @@ async def ask_frequency(callback: types.CallbackQuery):
     await callback.message.answer("Оберіть як часто надсилати ціни:", reply_markup=keyboard)
     await callback.answer()
 
-
 @router.callback_query(F.data.startswith("freq_"))
 async def handle_frequency(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -96,7 +135,6 @@ async def handle_frequency(callback: types.CallbackQuery):
     await callback.message.answer(f"✅ Частоту встановлено: {freq}")
     await callback.answer()
 
-
 @router.callback_query(F.data == "get_prices")
 async def handle_prices(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -104,65 +142,23 @@ async def handle_prices(callback: types.CallbackQuery):
     text = "📈 Поточні ціни:\n"
     try:
         async with aiohttp.ClientSession() as session:
-            for coin in coins:
-                url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies=usd"
-                try:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            raise Exception(f"Bad response: {resp.status}")
-                        data = await resp.json()
-                        price = data.get(coin, {}).get("usd")
-                        if price is not None:
-                            text += f"{coin.capitalize()}: ${price}\n"
-                        else:
-                            text += f"{coin.capitalize()}: ⚠️ Немає даних\n"
-                except Exception as e:
-                    logger.warning(f"Помилка з монетою {coin}: {e}")
-                    text += f"{coin.capitalize()}: ❌ Помилка отримання даних\n"
+            ids_param = ",".join(coins)
+            url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_param}&vs_currencies=usd"
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    raise Exception(f"Bad response: {resp.status}")
+                data = await resp.json()
+                for coin_id in coins:
+                    price = data.get(coin_id, {}).get("usd")
+                    if price is not None:
+                        text += f"{coin_id.capitalize()}: ${price}\n"
+                    else:
+                        text += f"{coin_id.capitalize()}: ❌ Помилка отримання даних\n"
         await callback.message.answer(text.strip())
     except Exception as e:
         logger.warning(f"❌ Помилка отримання цін: {e}")
         await callback.message.answer("❌ Помилка отримання цін. Спробуйте пізніше.")
     await callback.answer()
-
-
-@router.message()
-async def handle_coin_input(message: types.Message):
-    user_id = message.from_user.id
-    user_data = user_settings.setdefault(user_id, {})
-    if user_data.get("mode") != "selecting_coins":
-        return
-
-    coin_input = message.text.lower().strip()
-
-    if coin_input == "готово":
-        user_data["mode"] = None
-        await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
-        return
-
-    global coin_list_cache, symbol_to_id_map
-    if not coin_list_cache:
-        async with aiohttp.ClientSession() as session:
-            url = "https://api.coingecko.com/api/v3/coins/list"
-            async with session.get(url) as resp:
-                coin_list_cache = await resp.json()
-                symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
-
-    coin_id = symbol_to_id_map.get(coin_input)
-
-    if not coin_id:
-        await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
-        return
-
-    coins = user_data.setdefault("coins", [])
-    if coin_id in coins:
-        await message.answer("ℹ️ Цю монету вже додано.")
-    elif len(coins) >= 3:
-        await message.answer("⚠️ Можна обрати максимум 3 монети.")
-    else:
-        coins.append(coin_id)
-        await message.answer(f"✅ Додано монету: <b>{coin_input.upper()}</b> ({len(coins)}/3)", parse_mode=ParseMode.HTML)
-
 
 if __name__ == "__main__":
     app = web.Application()

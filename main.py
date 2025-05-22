@@ -146,8 +146,12 @@ async def handle_coin_input(message: types.Message):
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
                 coin_list_cache = await resp.json()
-                symbol_to_id_map = {c['symbol'].lower(): c['id'] for c in coin_list_cache}
-                symbol_to_id_map.update({c['id'].lower(): c['id'] for c in coin_list_cache})
+                symbol_to_id_map = {}
+                for c in coin_list_cache:
+                    symbol_to_id_map[c['symbol'].lower()] = c['id']
+                    symbol_to_id_map[c['id'].lower()] = c['id']
+                    if 'name' in c:
+                        symbol_to_id_map[c['name'].lower()] = c['id']
 
     coin_id = symbol_to_id_map.get(coin_input)
 

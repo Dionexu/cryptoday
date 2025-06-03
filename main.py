@@ -54,32 +54,28 @@ def get_user_data(user_id):
     return user_settings.setdefault(user_id, {"coins": [], "frequency": None, "current_step": "INIT"})
 
 async def ensure_coin_list_loaded(message_or_callback: types.Union[types.Message, types.CallbackQuery]):
-    """Checks if coin list is loaded, sends message if not."""
-    global COIN_LIST_LOAD_ATTEMPTED
-    if not coin_list_cache or not isinstance(coin_list_cache, list):
-        text = "⚠️ Список монет наразі недоступний. Можливо, є проблеми з API CoinGecko або перевищено ліміт запитів. Спробуйте пізніше. Натисніть /start, щоб спробувати оновити."
-        if not COIN_LIST_LOAD_ATTEMPTED: # If first attempt after startup failed
-             logger.warning("Coin list not loaded. Attempting to load now.")
-             await load_coin_list() # Try to load it again
-             if not coin_list_cache or not isinstance(coin_list_cache, list): # Check again after attempt
-                logger.warning("Coin list still not loaded after explicit attempt in ensure_coin_list_loaded.")
-             else:
-                logger.info("Coin list successfully loaded after explicit attempt in ensure_coin_list_loaded.")
-                return True # Successfully loaded
-        else:
-            logger.warning("Coin list not loaded or not a list when ensure_coin_list_loaded was called, and load was already attempted.")
+    """Checks if coin list is loaded and valid, sends message if not."""
+    # Check if the list is not populated or not a list type, or explicitly empty
+    if not coin_list_cache or not isinstance(coin_list_cache, list) or not coin_list_cache: # Added check for empty list
+        text = "⚠️ Список монет наразі недоступний. "
+        if COIN_LIST_LOAD_ATTEMPTED: # If an attempt was made (e.g. during startup or /start) and it's still not available
+            text += "Можливо, є проблеми з API CoinGecko або перевищено ліміт запитів. Спробуйте команду /start трохи пізніше, щоб оновити."
+        else: # This case should be rare if /start always attempts a load.
+            text += "Завантаження списку ще не відбулося. Спробуйте команду /start."
+        
+        logger.warning(f"ensure_coin_list_loaded: Coin list is not available. Cache is list: {isinstance(coin_list_cache, list)}, Cache empty: {not coin_list_cache if isinstance(coin_list_cache, list) else 'N/A'}. Load attempted: {COIN_LIST_LOAD_ATTEMPTED}")
 
-        # Send message only if still not loaded
-        if not coin_list_cache or not isinstance(coin_list_cache, list):
+        try:
+            target_chat_id = message_or_callback.from_user.id
             if isinstance(message_or_callback, types.Message):
                 await message_or_callback.answer(text)
             elif isinstance(message_or_callback, types.CallbackQuery):
-                try:
-                    await message_or_callback.message.answer(text)
-                except Exception as e: # If original message is too old to reply to
-                    await bot.send_message(message_or_callback.from_user.id, text)
-                await message_or_callback.answer()
-            return False
+                # For callbacks, it's often better to send a new message if the context is about a general failure
+                await bot.send_message(target_chat_id, text)
+                await message_or_callback.answer() # Answer the callback to remove "loading" state
+        except Exception as e:
+            logger.error(f"Error sending message in ensure_coin_list_loaded: {e}")
+        return False
     return True
 
 
@@ -95,38 +91,37 @@ def create_mock_message_from_callback(callback: types.CallbackQuery) -> types.Me
 # --- CoinGecko API Interaction ---
 async def load_coin_list():
     global coin_list_cache, COIN_LIST_LOAD_ATTEMPTED
-    COIN_LIST_LOAD_ATTEMPTED = True # Mark that an attempt is being made/has been made
+    COIN_LIST_LOAD_ATTEMPTED = True 
     max_retries = 3
-    base_delay = 10  # seconds
+    base_delay = 10 
 
     for attempt in range(max_retries):
         try:
             logger.info(f"Attempting to load coin list (Attempt {attempt + 1}/{max_retries})...")
             async with aiohttp.ClientSession() as session:
                 url = "https://api.coingecko.com/api/v3/coins/list"
-                async with session.get(url, timeout=15) as resp: # Added timeout
+                async with session.get(url, timeout=15) as resp: 
                     if resp.status == 200:
                         data = await resp.json()
-                        if isinstance(data, list):
+                        if isinstance(data, list) and data: # Ensure data is a non-empty list
                             coin_list_cache = data
                             logger.info(f"✅ Coin list loaded successfully. Total: {len(coin_list_cache)} coins.")
-                            return True # Success
+                            return True 
                         else:
-                            logger.error(f"⚠️ Coin list loaded but is not a list. Type: {type(data)}. Data: {str(data)[:200]}")
-                            coin_list_cache = [] # Set to empty list to avoid type errors
+                            logger.error(f"⚠️ Coin list loaded but is not a valid list or is empty. Type: {type(data)}. Data: {str(data)[:200]}")
+                            coin_list_cache = [] 
                     elif resp.status == 429:
                         logger.warning(f"⚠️ Rate limit exceeded (429) on attempt {attempt + 1}. Waiting to retry...")
-                        # Don't return here, let it retry after delay
                     else:
                         logger.error(f"⚠️ Failed to load coin list. Status: {resp.status}, Response: {await resp.text()}")
                         coin_list_cache = []
-                    # For any non-200 or non-429 error that's not a client error, break retry if not last attempt
-                    if resp.status not in [200, 429] and attempt < max_retries -1:
-                         logger.error(f"Non-retryable API error {resp.status}. Stopping retries.")
-                         break
+                        if attempt < max_retries -1 and resp.status not in [401, 403, 404]: # Don't retry auth/not found errors
+                             pass # Will go to sleep and retry
+                        else: # For critical errors or last attempt
+                            logger.error(f"Stopping retries for status {resp.status}.")
+                            return False # Failed, stop retrying for this status
 
-
-        except aiohttp.ClientError as e: # Handles connection errors, timeouts
+        except aiohttp.ClientError as e: 
             logger.error(f"⚠️ ClientError loading coin list on attempt {attempt + 1}: {e}")
         except asyncio.TimeoutError:
             logger.error(f"⚠️ TimeoutError loading coin list on attempt {attempt + 1}.")
@@ -134,18 +129,14 @@ async def load_coin_list():
             logger.error(f"⚠️ Unexpected error loading coin list on attempt {attempt + 1}: {e}")
         
         if attempt < max_retries - 1:
-            delay = base_delay * (2 ** attempt) # Exponential backoff
+            delay = base_delay * (2 ** attempt) 
             logger.info(f"Waiting {delay} seconds before next attempt...")
             await asyncio.sleep(delay)
         else:
             logger.error("Max retries reached for loading coin list. List remains unavailable.")
-            coin_list_cache = [] # Ensure it's empty
-            return False # Failed after all retries
     
-    if not coin_list_cache: # If loop finished without success
-        coin_list_cache = []
-        return False
-    return False # Should not be reached if logic is correct, but as a fallback
+    coin_list_cache = [] # Ensure it's an empty list if all retries fail
+    return False
 
 
 # --- Sequential Setup Steps ---
@@ -158,17 +149,17 @@ async def start_coin_selection(message_or_callback: types.Union[types.Message, t
     user_data["selected_coins_buffer"] = list(user_data.get("coins", [])) 
 
     if not await ensure_coin_list_loaded(message_or_callback):
-        # ensure_coin_list_loaded already sends a message if it fails
         return
 
     current_coins_text_parts = []
+    # coin_list_cache is now guaranteed to be a list by ensure_coin_list_loaded, but could be empty
     if coin_list_cache: 
         for coin_id_in_buffer in user_data["selected_coins_buffer"]:
             found_coin = next((c for c in coin_list_cache if c.get('id') == coin_id_in_buffer), None)
             current_coins_text_parts.append(
                 f"{found_coin.get('name', coin_id_in_buffer.capitalize())} ({found_coin.get('symbol','N/A').upper()})" if found_coin else coin_id_in_buffer.capitalize()
             )
-    else: # Should not happen if ensure_coin_list_loaded passed
+    else: 
          current_coins_text_parts = [c.capitalize() for c in user_data["selected_coins_buffer"]]
 
 
@@ -183,11 +174,16 @@ async def start_coin_selection(message_or_callback: types.Union[types.Message, t
     )
     
     try:
+        target_chat_id = message_or_callback.from_user.id
         if isinstance(message_or_callback, types.Message):
             await message_or_callback.answer(text, parse_mode=ParseMode.HTML)
         elif isinstance(message_or_callback, types.CallbackQuery):
-            await message_or_callback.message.edit_text(text, parse_mode=ParseMode.HTML)
-        if isinstance(message_or_callback, types.CallbackQuery): await message_or_callback.answer()
+            # Edit if possible, otherwise send new (e.g. if original message deleted or too old)
+            try:
+                await message_or_callback.message.edit_text(text, parse_mode=ParseMode.HTML)
+            except Exception:
+                await bot.send_message(target_chat_id, text, parse_mode=ParseMode.HTML)
+            await message_or_callback.answer()
         logger.info(f"[User {user_id}] Sent coin selection prompt.")
     except Exception as e:
         logger.error(f"[User {user_id}] Error sending/editing message in start_coin_selection: {e}")
@@ -212,11 +208,15 @@ async def start_frequency_selection(message_or_callback: types.Union[types.Messa
     text = ("<b>Крок 2: Оберіть частоту оновлення цін</b>\n\n"
             "Як часто ви бажаєте отримувати автоматичні оновлення? (Ця функція буде додана пізніше, зараз це налаштування зберігається для майбутнього використання).")
     try:
+        target_chat_id = message_or_callback.from_user.id
         if isinstance(message_or_callback, types.Message):
             await message_or_callback.answer(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         elif isinstance(message_or_callback, types.CallbackQuery):
-            await message_or_callback.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        if isinstance(message_or_callback, types.CallbackQuery): await message_or_callback.answer()
+            try:
+                await message_or_callback.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            except Exception:
+                 await bot.send_message(target_chat_id, text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            await message_or_callback.answer()
         logger.info(f"[User {user_id}] Sent frequency selection prompt.")
     except Exception as e:
         logger.error(f"[User {user_id}] Error sending/editing message in start_frequency_selection: {e}")
@@ -232,13 +232,13 @@ async def display_main_menu(message_or_callback: types.Union[types.Message, type
     frequency_options_display = {"2h": "кожні 2 години", "12h": "кожні 12 годин", "24h": "щодня"}
     freq_display = frequency_options_display.get(frequency_code, "не встановлено")
     coins_display_parts = []
-    if coin_list_cache: # Check if cache is available
+    if coin_list_cache: 
         for coin_id in selected_coins:
             coin_info = next((c for c in coin_list_cache if c.get('id') == coin_id), None)
             coins_display_parts.append(coin_info.get('name', coin_id.capitalize()) if coin_info else coin_id.capitalize())
-    else: # Fallback if coin_list_cache is still None
+    else: 
         coins_display_parts = [c.capitalize() for c in selected_coins]
-        if selected_coins: # Add a note if cache is unavailable but coins are selected
+        if selected_coins: 
             coins_display_parts.append("(інформація про назви монет тимчасово недоступна)")
 
     coins_text = ", ".join(coins_display_parts) if coins_display_parts else "не обрано"
@@ -249,11 +249,15 @@ async def display_main_menu(message_or_callback: types.Union[types.Message, type
         [InlineKeyboardButton(text="🔄 Скинути налаштування", callback_data="reset_settings_sequential")]
     ])
     try:
+        target_chat_id = message_or_callback.from_user.id
         if isinstance(message_or_callback, types.Message):
             await message_or_callback.answer(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         elif isinstance(message_or_callback, types.CallbackQuery):
-            await message_or_callback.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        if isinstance(message_or_callback, types.CallbackQuery): await message_or_callback.answer()
+            try:
+                await message_or_callback.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            except Exception:
+                await bot.send_message(target_chat_id, text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            await message_or_callback.answer()
         logger.info(f"[User {user_id}] Displayed main menu.")
     except Exception as e:
         logger.error(f"[User {user_id}] Error sending/editing message in display_main_menu: {e}")
@@ -265,18 +269,26 @@ async def cmd_start(message: types.Message):
     logger.info(f"[User {user_id}] Received /start command.")
     user_data = get_user_data(user_id)
     
-    # Attempt to load coin list if not already loaded or if an attempt hasn't been made yet
-    # This is crucial for the first interaction or after a long downtime.
-    if not coin_list_cache and not COIN_LIST_LOAD_ATTEMPTED:
-        logger.info(f"[User {user_id}] Coin list not cached and no load attempt made. Triggering load_coin_list from /start.")
-        await load_coin_list() # This will set COIN_LIST_LOAD_ATTEMPTED
+    # If coin list is not available (None, not a list, or empty list), try to load it.
+    if not coin_list_cache or not isinstance(coin_list_cache, list) or not coin_list_cache:
+        logger.info(f"[User {user_id}] /start: Coin list is unavailable. Triggering load_coin_list.")
+        load_successful = await load_coin_list() 
+        
+        if not load_successful:
+            logger.warning(f"[User {user_id}] /start: Coin list still unavailable after explicit load attempt. Informing user.")
+            try:
+                await message.answer("⚠️ На жаль, не вдалося завантажити список монет зараз. Сервіс CoinGecko може бути тимчасово перевантажений або недоступний. Будь ласка, спробуйте команду /start трохи пізніше.")
+            except Exception as e:
+                logger.error(f"[User {user_id}] /start: Error sending coin list load failure message: {e}")
+            return 
 
     if user_data.get("current_step") == "SETUP_COMPLETE" and user_data.get("coins") and user_data.get("frequency"):
+        logger.info(f"[User {user_id}] /start: Setup complete. Displaying main menu.")
         await display_main_menu(message)
     else:
-        logger.info(f"[User {user_id}] Setup not complete or explicit /start. Resetting and starting coin selection.")
-        user_data["coins"] = [] # Reset coins for a fresh setup if not complete
-        user_data["frequency"] = None # Reset frequency
+        logger.info(f"[User {user_id}] /start: Setup not complete or explicit /start. Resetting and starting coin selection.")
+        user_data["coins"] = [] 
+        user_data["frequency"] = None 
         await start_coin_selection(message)
 
 @router.callback_query(F.data == "reset_settings_sequential")
@@ -301,7 +313,7 @@ async def handle_message_input(message: types.Message):
         logger.info(f"[User {user_id}] In SELECTING_COINS step.")
         if not await ensure_coin_list_loaded(message):
             logger.warning(f"[User {user_id}] Coin list not loaded, exiting handle_message_input for coin selection.")
-            return # ensure_coin_list_loaded sends a message
+            return 
 
         coin_input_text = message.text.lower().strip()
         logger.info(f"[User {user_id}] Coin input text: '{coin_input_text}'")
@@ -330,7 +342,13 @@ async def handle_message_input(message: types.Message):
         logger.info(f"[User {user_id}] Searching for coin: '{query}'")
         derivative_filters = ['wrapped', 'amm', 'pool', 'bpt', 'tokenized', 'wormhole', 'peg', 'staked', 'leveraged']
         potential_matches = []
-        for coin in coin_list_cache: # coin_list_cache is confirmed by ensure_coin_list_loaded
+        # coin_list_cache is guaranteed to be a list by ensure_coin_list_loaded, but check if empty
+        if not coin_list_cache: # Should have been caught by ensure_coin_list_loaded
+             logger.error(f"[User {user_id}] coin_list_cache is unexpectedly empty in handle_message_input after ensure_coin_list_loaded passed.")
+             await message.answer("Помилка: список монет порожній. Спробуйте /start пізніше.")
+             return
+
+        for coin in coin_list_cache: 
             coin_id_lower = coin.get('id', '').lower()
             coin_symbol_lower = coin.get('symbol', '').lower()
             coin_name_lower = coin.get('name', '').lower()
@@ -358,7 +376,7 @@ async def handle_message_input(message: types.Message):
                     coin_info = next((ci for ci in coin_list_cache if ci.get('id') == s_id), None)
                     if coin_info:
                         buffer_display_parts.append(f"{coin_info.get('name', s_id.capitalize())} ({coin_info.get('symbol','N/A').upper()})")
-                    else: # Should ideally not happen if coin was added from cache
+                    else: 
                         buffer_display_parts.append(s_id.capitalize())
                 current_coins_text = ", ".join(buffer_display_parts) if buffer_display_parts else "не обрано"
 
@@ -386,7 +404,7 @@ async def handle_add_sel_coin_callback(callback: types.CallbackQuery):
     if user_data.get("current_step") != "SELECTING_COINS":
         await callback.answer("Помилка: не той етап для додавання монет.", show_alert=True); return
     
-    if not await ensure_coin_list_loaded(callback): return # Check again, crucial for callbacks
+    if not await ensure_coin_list_loaded(callback): return 
 
     coin_id_to_add = callback.data.replace("addselcoin_", "")
     buffer = user_data.setdefault("selected_coins_buffer", [])
@@ -407,7 +425,7 @@ async def handle_remove_sel_coin_callback(callback: types.CallbackQuery):
     if user_data.get("current_step") != "SELECTING_COINS":
         await callback.answer("Помилка: не той етап для видалення монет.", show_alert=True); return
 
-    if not await ensure_coin_list_loaded(callback): return # Check again
+    if not await ensure_coin_list_loaded(callback): return 
 
     coin_id_to_remove = callback.data.replace("removeselcoin_", "")
     buffer = user_data.setdefault("selected_coins_buffer", [])
@@ -439,10 +457,8 @@ async def handle_get_prices_callback(callback: types.CallbackQuery):
     if user_data.get("current_step") != "SETUP_COMPLETE" or not user_data.get("coins"):
         await callback.answer("Спочатку завершіть налаштування монет.", show_alert=True); return
     
-    if not await ensure_coin_list_loaded(callback): # Check if coin list is available for names
-        # If not available, prices can still be fetched, but names might be just IDs
+    if not await ensure_coin_list_loaded(callback): 
         logger.warning(f"[User {user_id}] Coin list not available for get_prices, names might be IDs.")
-        # Proceed with fetching prices anyway
 
     coins_to_fetch = user_data["coins"]
     await callback.answer("⏳ Отримую ціни...") 
@@ -451,13 +467,13 @@ async def handle_get_prices_callback(callback: types.CallbackQuery):
         async with aiohttp.ClientSession() as session:
             ids_param = ",".join(coins_to_fetch)
             url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids_param}&vs_currencies=usd"
-            async with session.get(url, timeout=10) as resp: # Added timeout
+            async with session.get(url, timeout=10) as resp: 
                 if resp.status == 200:
                     data = await resp.json()
                     for coin_id in coins_to_fetch:
                         price_data = data.get(coin_id)
                         coin_name_display, sym_display = coin_id.capitalize(),""
-                        if coin_list_cache: # Use cache for names if available
+                        if coin_list_cache: 
                             info = next((c for c in coin_list_cache if c.get('id')==coin_id),None)
                             if info: coin_name_display, sym_display = info.get('name',coin_id.capitalize()), f" ({info.get('symbol','').upper()})"
                         
@@ -477,75 +493,54 @@ async def handle_get_prices_callback(callback: types.CallbackQuery):
             if callback.message.text != final_text or callback.message.reply_markup != keyboard :
                 await callback.message.edit_text(final_text.strip(), parse_mode=ParseMode.HTML, reply_markup=keyboard)
             else: await callback.answer() 
-        except Exception: # Fallback to sending new message
+        except Exception: 
              await callback.message.answer(final_text.strip(), parse_mode=ParseMode.HTML, reply_markup=keyboard)
     except aiohttp.ClientError as e:
         logger.error(f"ClientError in get_prices for {user_id}: {e}")
-        text_parts.append("❌ Мережева помилка при отриманні цін.")
+        text_parts = [text_parts[0], "❌ Мережева помилка при отриманні цін."] # Keep header, replace rest
     except asyncio.TimeoutError:
         logger.error(f"TimeoutError in get_prices for {user_id}.")
-        text_parts.append("❌ Час очікування відповіді від API вичерпано.")
+        text_parts = [text_parts[0], "❌ Час очікування відповіді від API вичерпано."]
     except Exception as e:
         logger.exception(f"Error in handle_get_prices_callback for {user_id}: {e}")
-        text_parts.append("❌ Невідома помилка при отриманні цін.")
+        text_parts = [text_parts[0], "❌ Невідома помилка при отриманні цін."]
     
-    # If any error occurred and text_parts was modified beyond the initial header
-    if len(text_parts) > 1 and "❌" in text_parts[-1]: # Check if last added part indicates an error
+    if len(text_parts) > 1 and "❌" in text_parts[-1]: 
         final_text_on_error = "\n".join(text_parts)
         error_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="↩️ Головне меню", callback_data="back_to_main_menu_from_error")]
         ])
         try:
-            # Try to edit the original message first
             await callback.message.edit_text(final_text_on_error.strip(), parse_mode=ParseMode.HTML, reply_markup=error_keyboard)
         except Exception:
-            # If editing fails (e.g., message too old), send a new one
-            await callback.message.answer(final_text_on_error.strip(), parse_mode=ParseMode.HTML, reply_markup=error_keyboard)
+            await bot.send_message(callback.from_user.id, final_text_on_error.strip(), parse_mode=ParseMode.HTML, reply_markup=error_keyboard)
 
 
 @router.callback_query(F.data == "back_to_main_menu_from_error")
 async def handle_back_to_main_from_error(callback: types.CallbackQuery):
     logger.info(f"[User {callback.from_user.id}] Going back to main menu from error.")
     mock_msg = create_mock_message_from_callback(callback)
-    await display_main_menu(mock_msg) # This should show the main menu correctly
+    await display_main_menu(mock_msg) 
     await callback.answer()
 
 # --- Webhook Setup & Application Start ---
-async def on_startup(bot_instance: Bot): # Pass bot instance explicitly
+async def on_startup(bot_instance: Bot): 
     logger.info(f"Setting webhook to: {WEBHOOK_URL}")
     await bot_instance.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
-    # Initial load attempt. If it fails, COIN_LIST_LOAD_ATTEMPTED will be True,
-    # and ensure_coin_list_loaded will handle further user interactions.
     asyncio.create_task(load_coin_list()) 
 
-async def on_shutdown(bot_instance: Bot): # Pass bot instance explicitly
+async def on_shutdown(bot_instance: Bot): 
     logger.info("Shutting down...")
     await bot_instance.session.close()
 
 if __name__ == "__main__":
-    # It's better to create the Application object and then pass it around
-    # if needed, or access bot/dp via context if using newer aiogram patterns.
-    # For this structure, passing bot explicitly to on_startup/on_shutdown is fine.
-    
-    # Pass bot to on_startup and on_shutdown
     dp.startup.register(lambda: on_startup(bot))
     dp.shutdown.register(lambda: on_shutdown(bot))
 
     app = web.Application()
-    # The SimpleRequestHandler should be configured with the dispatcher.
     webhook_requests_handler = SimpleRequestHandler(
         dispatcher=dp,
         bot=bot,
-        # any other kwargs for SimpleRequestHandler
     )
     webhook_requests_handler.register(app, path=WEBHOOK_PATH)
-    
-    # setup_application is a utility from aiogram.webhook.aiohttp_server
-    # It typically sets up routes for the dispatcher and can handle bot context.
-    # If you register routes manually as above, ensure it doesn't conflict.
-    # For this setup, explicit registration is clear.
-    # setup_application(app, dp, bot=bot) # This might be redundant if routes are manually set.
-                                        # If used, ensure it's configured correctly.
-                                        # For now, let's rely on manual registration.
-
     web.run_app(app, host="0.0.0.0", port=PORT)

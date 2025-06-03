@@ -29,32 +29,35 @@ if not WEBHOOK_HOST.startswith(("http://", "https://")):
 
 WEBHOOK_PATH = f"/webhook/{TOKEN.split(':')[0]}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-PORT = int(os.environ["PORT"])
+PORT = int(os.environ.get("PORT", 8080))
 print(f"🚀 Starting on port {PORT}")
 
 bot = Bot(TOKEN, parse_mode=ParseMode.HTML)
 
+coin_list_cache = []
+symbol_to_id_map = {}
+
 async def load_coin_list():
-    global coin_list_cache
+    global coin_list_cache, symbol_to_id_map
     try:
         async with aiohttp.ClientSession() as session:
             url = "https://api.coingecko.com/api/v3/coins/list"
             async with session.get(url) as resp:
                 if resp.status == 200:
                     coin_list_cache = await resp.json()
+                    symbol_to_id_map = {coin['symbol'].lower(): coin['id'] for coin in coin_list_cache}
                     print(f"✅ Coin list loaded. Total: {len(coin_list_cache)} coins.")
                 else:
                     print(f"⚠️ Failed to load coin list. Status: {resp.status}")
     except Exception as e:
         print(f"⚠️ Error loading coin list: {e}")
+
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
 dp.include_router(router)
 
 user_settings = {}
-coin_list_cache = None
-symbol_to_id_map = {}
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -94,16 +97,20 @@ async def handle_coin_input(message: types.Message):
         await message.answer("✅ Монети збережено. Тепер натисніть 'Дивитися ціни'.")
         return
 
-    global coin_list_cache, symbol_to_id_map
     if not coin_list_cache:
         await message.answer("⚠️ Список монет ще не завантажено. Спробуйте ще раз через кілька секунд або введіть /start.")
         return
 
-    query = coin_input.lower()
-    matches = [
-    coin for coin in coin_list_cache
-    if (query in coin['id'].lower() or query in coin['symbol'].lower()) and not any(x in coin['id'] for x in ['wrapped', 'amm', 'pool', 'bpt', 'tokenized', 'wormhole', 'peg'])
-]
+    # Пріоритет точному співпадінню символу
+    exact_match_id = symbol_to_id_map.get(coin_input)
+    if exact_match_id:
+        matches = [coin for coin in coin_list_cache if coin['id'] == exact_match_id]
+    else:
+        matches = [
+            coin for coin in coin_list_cache
+            if (coin_input in coin['id'].lower() or coin_input in coin['symbol'].lower())
+            and not any(x in coin['id'] for x in ['wrapped', 'amm', 'pool', 'bpt', 'tokenized', 'wormhole', 'peg'])
+        ]
 
     if not matches:
         await message.answer("❌ Такої монети не знайдено. Спробуйте ще раз.")
